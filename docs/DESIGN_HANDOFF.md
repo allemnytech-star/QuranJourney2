@@ -1,0 +1,230 @@
+# Quran Journey — Design & Engineering Handoff
+
+**Quran Journey — احفظ بفهم، وثبّت بذكاء**
+
+Scope: the Next Preview (`src/studio/next/`, route `#/design-studio/next`), the release candidate for the future standalone app. Production routes, stores and entry point are **unchanged**.
+Recovery checkpoint before this round: git tag `checkpoint/before-master-ux-upgrade`.
+
+Status labels used below:
+- **EXISTING**: worked before this round, reused as is.
+- **NEW · FUNCTIONAL**: new manual behaviour that works now on real data.
+- **DESIGN READY**: UI and typed contract exist. It needs an engine or data before it can work.
+- **ENGINE-DEPENDENT**: waits for Adaptive Hifz, Smart Revision or Tilawa.
+- **NOT VERIFIED**: not checked on real devices.
+
+---
+
+## 1. Product overview
+
+- The app is completely free. It has no ads, paywalls, subscriptions or paid AI APIs.
+- Learning philosophy:
+  - Understand, listen, actively recall, connect, recite and retain.
+  - Sessions are finite and have a purpose. Streaks, urgency and time-on-app goals are excluded.
+  - The app does not replace a qualified teacher.
+- Integrity rules, enforced in code:
+  - Opening, swiping, listening, reading Tafsir and skipping never count as memorisation.
+  - An ayah counts as memorised only through an explicit confirmation (`progress.confirmMemorized`).
+  - AI recognition will never count as mastery.
+  - Nothing is fabricated: no Quran text, Tafsir, word meanings, mistakes, scores, review dates or model progress.
+- Preserved: plans and versions, tasks, step confirmations, session, bookmarks, reflections, similarity links, map and library, achievements, kids progress, Azkar (content, counters, history, favourites), and themes.
+
+## 2. Screen inventory and navigation
+
+| Screen id | Arabic | Status |
+|---|---|---|
+| `home` | رحلتك اليوم | EXISTING, evolved: «ابدأ / تابع ورد اليوم» primary action, «تعلّم اليوم» card (presets, three experiences, onboarding nudge) |
+| `guided` | رحلتي الموجّهة | **NEW · FUNCTIONAL** Guided Smart Feed |
+| `ayah` | الحفظ الحر (رحلة الحفظ) | EXISTING free vertical feed, unchanged behaviour |
+| `revision` | تثبيت المحفوظ والمراجعة | EXISTING, plus a NEW retention section and «مواضع تحتاج إلى مراجعة» |
+| `recite` | التسميع الذكي وتصحيح الحفظ | NEW Tilawa-ready UI (DESIGN READY). The Muaalem flow is now a collapsed research tool |
+| `settings` | الإعدادات | NEW: preferences, self-reported memorisation, model manager (DESIGN READY), privacy and local data |
+| `welcome` | الترحيب والإعداد | **NEW · FUNCTIONAL** skippable onboarding |
+| `mushaf`, `plans`, `week`, `map`, `rewards`, `library`, `kids`, `azkar`, `azkar-list`, `similar` | | EXISTING, unchanged |
+
+- Mobile dock: Home, Guided, Free memorisation, Mushaf, Azkar and More. The other screens appear in the side rail and the More tabs.
+- Entry points to the three experiences:
+  - Home hero and home learning card.
+  - The Guided start screen («تجارب أخرى»).
+  - The navigation rail and dock.
+
+## 3. Guided Smart Feed (`screens/guided.tsx`)
+
+**Reused from `screens/ayah.tsx`:** the CSS scroll-snap feed, the IntersectionObserver frame sync, `useAyat` (exact text, loading/error/retry, 15 s stall timeout), `useAudio` (EveryAyah, repeat count), `TafsirSnippet` (التفسير الميسّر, attributed), `PassagePicker` (≤ 20 ayat, validated) and `LoadState`.
+
+**Card types** (`learning/contracts.ts → CardType`):
+
+| Card | Purpose |
+|---|---|
+| `intro` | Introduces the passage |
+| `understand` | Shows the meaning from attributed Tafsir |
+| `listen` | Listen and repeat, with a 1–10 repetition stepper |
+| `recall` | Active recall in three modes (visible, partial hiding, from memory). Hints are graduated: first letter, then the full word, plus «reveal next word» and retry |
+| `weak` | Hides only the words this learner revealed earlier in the session |
+| `cumulative` | Recalls a window of up to 5 ayat (`CUMULATIVE_WINDOW`) |
+| `connect` | Shows the end of one ayah and asks for the start of the next |
+| `recite` | Full passage hidden, with per-ayah first word, reveal and retry |
+| `reflect` | Optional personal note, kept separate from Tafsir |
+| `complete` | Session completion |
+
+**Order:** `learning/sequence.ts → buildSequence(passage, preference, preset)`. This is a **fixed, documented order. It is not adaptive.**
+- Preferences: `fast`, `tadabbur` (default), `mastery` and `retention`.
+- Presets: `daily`, `minute` (one ayah), `five`, `quick-review` and `tadabbur-moment`.
+- `fitToMinutes` trims cards to the chosen time as a rough aid, never a promise. It always keeps the completion card.
+- There is exactly one outcome rule (`followUps`), and it is stated in the UI: when a recall was assessed as anything other than «تذكّرتها وحدي», one `weak` card is inserted after it.
+
+**Navigation:**
+- Vertical swipe works.
+- Previous and next buttons work.
+- On desktop, the feed takes ArrowUp/Down and PageUp/Down when focused, and a side «مخطط الجلسة» outline can jump to any card.
+- A progress bar shows the current card.
+
+**State:** `learning/store.ts`, key `quranJourney.nextPreview.guided.v1`.
+- There is one session for all frames (module store with `useSyncExternalStore`).
+- `done[cardId] = { status: 'done'|'skipped'|'deferred', recall?, hintsUsed?, revealed? }`. A later outcome for the same card replaces the earlier one.
+- Skip or defer is stored as such and is never counted as done.
+- Pause (✕ / «أوقف مؤقتًا») keeps the session. Home then shows «تابع ورد اليوم» with the card number.
+- Completion:
+  - Shows what was actually recalled independently, what needed hints, what needs practice and what was deferred.
+  - Offers per-ayah «أؤكّد حفظ الآية» buttons. These are the only path to memorisation (session `setMemAt` and `progress.confirmMemorized`).
+  - States that no review date is scheduled.
+- Passage choice per preset (`useStartGuided`):
+  - `daily`: the first ≤ 20-ayah chunk of today's open Hifz task, otherwise the session passage.
+  - `minute`: a memorised record, otherwise the current ayah.
+  - `quick-review`: assessed session ayat, then memorised records, then self-reported passages. If none exist, it shows an honest message.
+- Workload hint: when 5 or more places need review, the app suggests reducing new memorisation. It is never enforced.
+
+## 4. Adaptive learning (methodology mapping)
+
+| Stage | Where |
+|---|---|
+| افهم | `understand` card. Word meanings show a missing-source notice (no verified dataset) |
+| استمع وردّد | `listen` card. Segment repetition is disabled because there are no verified timestamps or waqf boundaries |
+| احفظ واسترجع | `recall` and `weak` cards. Revealed words are stored as weak words |
+| اربط | `cumulative` and `connect` cards, plus the existing ConnectPanel and SimilarPanel in Free mode |
+| سمّع | `recite` card (manual). The Tilawa hand-off is DESIGN READY |
+| ثبّت | `complete` card and the Revision retention section |
+
+- The existing six-step `MemorizePanel` in Free mode is preserved unchanged.
+- **Visual Mushaf memorisation (fixed layout): BLOCKED on data.** It needs per-page line and word geometry for the 15-line Madinah Mushaf, for example QPC/KFGQPC word-by-word layout with `page`, `line`, `position` and `glyph` for every word, under a usable licence. Current pages reflow text, so the app makes no claim of authentic geometry.
+
+## 5. Retention (`screens/retention.tsx`, inside Revision)
+
+Learning states (`RETENTION_AR`) come from the learner's own records only:
+- `needs-review`: session results «أخطأت قليلًا / لم أتذكّرها».
+- `initial`: confirmed memorisation.
+- `new`: assessed but not confirmed.
+- `consolidating`, `strong` and `established` show «يتطلّب المحرك» because they need the scheduler.
+- No numeric mastery percentages are shown.
+
+**Suggested intervals** (`SUGGESTED_INTERVALS`): end of session, the same day, then 1, 3, 7, 14 and 30 days. They are labelled as configurable heuristics.
+
+**Due, overdue and upcoming:** these show an explicit "Smart Revision Engine not active" state. No dates exist.
+
+**«مواضع تحتاج إلى مراجعة»:**
+- Self tab: revealed-word records with the words highlighted in the real Hafs text, a recurring-ayah badge and filters. Actions: open ayah, retry (minute session), mark reviewed and delete.
+- Engine tab: an honest empty state.
+
+**Integration:** existing plan revision tasks and manual revision are untouched. Retention never adds memorised ayat, never resets progress and never penalises.
+
+**Future scheduler:** implement `SmartRevisionEngine` (`due`, `overdue`, `upcoming`, `record`, `workload`). It must de-duplicate against `planTasks` revision tasks (same `g0..g1` and date).
+
+## 6. Religious content
+
+- **Quran text:** KFGQPC Hafs via `lib/quran.loadMushaf`, with a labelled Tanzil fallback drawn in the Tanzil font. It is never hand-typed.
+- **Tafsir:** `lib/tafsir` verbatim (التفسير الميسّر, King Fahd Complex; others in Free mode) with source labels.
+- **Missing verified data:** each item below needs a sourced dataset or recording before it can be used.
+  - Word-by-word meanings.
+  - Fixed-layout Mushaf geometry.
+  - Ayah-segment audio timestamps with valid stopping points.
+  - Verified mutashabihat (still `[]`).
+  - Kids audio.
+  - Azkar audio.
+  - Scholarly review of Azkar, and publisher permission.
+
+## 7. AI integration (Tilawa)
+
+- **Not installed:** `@tilawa/core` (https://github.com/yazinsai/tilawa) is not installed and no weights are downloaded. The live status is always «محرك التسميع غير محمّل · غير متاح».
+- **Contracts** (`learning/contracts.ts`): `TilawaEngine` (`supports`, `load(variant, onProgress, signal)`, `start`, `stop`, `release`), `TilawaEvent` (identified, word, uncertain, lost, mistake suspected/confirmed, self-corrected, end) and `TilawaState` (16 UI states).
+  - Every event must map to authoritative Hafs `(s, a, wordIndex)`.
+  - Only the `supports` categories are shown.
+- **UI** (`screens/tilawa.tsx`):
+  - Passage and free-start modes.
+  - The state flow.
+  - Tracking colours: gold = current word, soft green = recognised, amber = tentative, restrained red = engine-confirmed, neutral = uncertain.
+  - Mistake kinds, an empty report and the disclaimer.
+  - A manual hidden-text recitation hand-off to the guided feed.
+- **Model manager** (`screens/settings.tsx`):
+  - Light ≈ 25 MB and full ≈ 68 MB (advertised, to be verified). The UI states that download size ≠ RAM.
+  - Download, delete and release controls are disabled.
+  - Real browser checks: WebAssembly, AudioWorklet, getUserMedia, `navigator.storage.estimate()` and `deviceMemory`.
+  - States: `MODEL_STATE_AR`.
+- **Lifecycle requirements for Codex:**
+  - Never load at startup. Load only on request.
+  - Run only one model at a time.
+  - `release()` must free the mic and inference resources and be idempotent.
+  - The session owner sits above the device frames, like `SessionCtx` and the guided store, so Both mode never runs two engines or audio sessions.
+  - The manual path always works without a model.
+- **Muaalem:** isolated as a collapsed research tool in `recite`. It mounts and polls `useEngine` only after the user opens it.
+
+## 8. Visual design
+
+- **Tokens:** the existing Sakina tokens and palettes (`src/studio/next/DESIGN.md`, `next.css`, `themeScope.ts`). Classes include `mf-paper`, `mf-text` and `glass-panel`.
+- **Illustration registry:** `illustrations.tsx`, the single source for feature art.
+  - Lightweight local SVG in a soft 3D style: emerald, champagne gold, ivory and wood, with one light source and a contact shadow.
+  - IDs: `guided`, `free`, `retention`, `minute`, `tadabbur`, `recite`, `model`, `mushaf`, `mistakes`, `welcome`.
+  - Functional icons stay in `components/Icon`.
+  - Still to cover: Azkar sub-types, Dua, Tasbeeh, Plans, Week, Map, Library, Kids and Bookmarks. Several already have isometric art in `iso.tsx`.
+  - Gradient colours are fixed hex values. Checking them in dark mode is NOT VERIFIED.
+- **Hero Mushaf:** `quranBook.tsx` (EXISTING). Pages 1–2 show real text via `usePageState`. Clicking it continues reading. Progress uses the ribbon and glow and never recolours the text. Lines reflow because no line layout data exists.
+- **Accessibility:**
+  - RTL throughout.
+  - Card navigation never depends on swipe alone.
+  - Radio groups and progress bars have ARIA roles.
+  - Touch targets are ≥ 40–48 px.
+
+## 9. Engineering preparation
+
+**New files:**
+- `learning/contracts.ts`
+- `learning/sequence.ts`
+- `learning/store.ts`
+- `illustrations.tsx`
+- `screens/guided.tsx`
+- `screens/retention.tsx`
+- `screens/tilawa.tsx`
+- `screens/settings.tsx`
+- `screens/welcome.tsx`
+
+**Modified files:**
+- `core.tsx` (ScreenId, NAV)
+- `NextPreview.tsx` (screens, notes)
+- `session.tsx` (`setNoteAt`, `setMemAt`)
+- `storageSafety.tsx` (store name)
+- `screens/ayah.tsx` (exports only)
+- `screens/home.tsx`
+- `screens/revision.tsx`
+- `screens/recite.tsx` (restructure; Muaalem flow unchanged inside `MuaalemLab`)
+- `tests/*`
+
+**Integration points:**
+- Replace `buildSequence`/`followUps` with `AdaptiveHifzEngine.next()`.
+- Implement `SmartRevisionEngine` and feed the retention panel.
+- Implement a `TilawaEngine` adapter and the model manager.
+- Persist `MistakeRecord`.
+
+**Production migration requirements:**
+- Extract the screens from the preview wrapper (`Chrome`/`PhoneShell`/`Fit` are preview-only).
+- Map the preview keys to production stores with a migration.
+- Remove the Design Studio toolbar.
+- Run acceptance tests on real devices.
+
+## 10. Verification (this round)
+
+- `pnpm exec tsc --noEmit`: clean.
+- `pnpm run build`: succeeds. The only warning is the existing chunk-size warning.
+- `node src/studio/next/tests/preview.test.mjs`: 26 / 27 pass.
+  - The new G1–G5 tests cover the sequence, the outcome rule, time fitting, the summary, store integrity and quarantine.
+  - **S5 fails for a pre-existing reason:** it runs `git show 59c6301`, and that commit is not in this repository's history.
+- `node src/studio/next/tests/render.smoke.mjs`: 94 / 94 renders.
+  - Covers all screens on mobile and desktop, plus the guided start/running, home resume, retention, Tilawa and model-manager states.
+- **NOT VERIFIED:** live browser interaction (the preview browser was not connected), real devices, dark mode, all palettes, long-ayah layouts on small screens, and screen readers.
