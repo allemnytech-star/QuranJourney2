@@ -17,6 +17,9 @@ import { StorageNotice } from '../storageSafety'
 import { surah } from '../../../lib/quran'
 import { setReciteTarget } from './recite'
 import { MushafIndex } from './mushafIndex'
+import { MemorizationSelector } from '../learning/selector'
+import type { ScopeSeed } from '../learning/scope'
+import { guided, useGuided } from '../learning/store'
 
 /**
  * One navigation value (`nav`: page + optional exact ayah) shared by every frame.
@@ -38,6 +41,7 @@ export function DigitalMushaf() {
   const device = useDevice()
   const { s, set } = useContext(MushafCtx)
   const { go: goScreen } = useProto()
+  const [memorize, setMemorize] = useState<ScopeSeed | null>(null)
   const setTone = (tone: Tone) => set({ tone })
   const back = () => set({ stage: 'index', view: 'reading', nav: navTo(s.nav.pg) })
   // Every entry point goes through navTo: manual page moves carry no focus (clearing any old one),
@@ -45,16 +49,18 @@ export function DigitalMushaf() {
   const go: Go = (pg, focus) => set({ nav: navTo(pg, focus) })
   const open = (pg: number, focus?: Focus) => set({ nav: navTo(pg, focus), stage: 'reader', view: 'reading' })
   const recite = (rs: number, ra: number) => (setReciteTarget({ s: rs, a: ra }), goScreen('recite'))
+  const memorizeAyah = (ms: number, ma: number) => setMemorize({ kind: 'ayah', s: ms, a: ma })
 
-  const ret = <><ReturnToJourney /><ReadingTaskBar /><RevisionTaskBar /></>
+  const ret = <><ReturnToJourney /><ReadingTaskBar /><RevisionTaskBar />{memorize && <MemorizationSelector seed={memorize} onClose={() => setMemorize(null)} />}</>
 
-  if (s.stage === 'index') return <div className="relative h-full"><MushafIndex pg={s.nav.pg} onOpen={open} />{ret}</div>
+  if (s.stage === 'index') return <div className="relative h-full"><MushafIndex pg={s.nav.pg} onOpen={open} onMemorize={setMemorize} />{ret}</div>
 
   if (device === 'desktop')
     return (
       <Chrome dock={false}>
         <div className="mp relative h-full" data-tone={s.tone}>
-          <DesktopReader nav={s.nav} onGo={go} tone={s.tone} setTone={setTone} auto onBack={back} onRecite={recite} />
+          <DesktopReader nav={s.nav} onGo={go} tone={s.tone} setTone={setTone} auto onBack={back} onRecite={recite} onMemorize={memorizeAyah} />
+          <button type="button" onClick={() => setMemorize({ kind: 'page', page: s.nav.pg })} className="mp-press absolute end-5 top-[76px] z-30 flex h-10 items-center gap-2 rounded-full bg-(--accent) px-4 text-[12.5px] font-semibold text-white shadow" data-memorize-page><Icon name="sprout" size={15} />ابدأ الحفظ</button>
           {ret}
         </div>
       </Chrome>
@@ -63,7 +69,8 @@ export function DigitalMushaf() {
   return (
     <div className="mp absolute inset-0" data-tone={s.tone}>
       <div className="pointer-events-none absolute inset-x-0 top-12 z-[70] [&>*]:pointer-events-auto"><StorageNotice /></div>
-      <MobileReader bare auto label="" pg={s.nav.pg} focus={s.nav.focus} view={s.view} tone={s.tone} setTone={setTone} onView={(view) => set({ view })} onGo={go} onBack={back} onRecite={recite} />
+      <MobileReader bare auto label="" pg={s.nav.pg} focus={s.nav.focus} view={s.view} tone={s.tone} setTone={setTone} onView={(view) => set({ view })} onGo={go} onBack={back} onRecite={recite} onMemorize={memorizeAyah} />
+      {s.view === 'reading' && <button type="button" onClick={() => setMemorize({ kind: 'page', page: s.nav.pg })} className="mp-press absolute end-4 top-[112px] z-30 flex h-10 items-center gap-2 rounded-full bg-(--accent) px-4 text-[12.5px] font-semibold text-white shadow" data-memorize-page><Icon name="sprout" size={15} />ابدأ الحفظ</button>}
       {ret}
     </div>
   )
@@ -117,7 +124,16 @@ function RevisionTaskBar() {
 /** Shown when the Mushaf was opened from the Memorization Journey: back to the same passage and ayah. */
 function ReturnToJourney() {
   const ses = useSession()
+  const g = useGuided()
   const { go } = useProto()
+  if (g.session?.awayToMushaf && !g.session.finishedAt)
+    return (
+      <div className="pointer-events-none absolute inset-x-0 bottom-24 z-[65] flex justify-center px-4">
+        <button type="button" onClick={() => (guided.setAwayToMushaf(false), go(g.session!.experience === 'guided' ? 'guided' : 'ayah'))} className="press pointer-events-auto flex h-11 items-center gap-2 rounded-full bg-night px-4 text-[13px] font-semibold text-parchment shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)]" data-return-guided>
+          <Icon name="back" size={16} className="rotate-180" />العودة إلى جلسة الحفظ · المقطع {toAr(g.session.segmentIndex + 1)}
+        </button>
+      </div>
+    )
   if (!ses.s.away) return null
   const { passage: p, cur } = ses.s
   return (

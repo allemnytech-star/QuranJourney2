@@ -93,6 +93,54 @@ Status labels used below:
   - `quick-review`: assessed session ayat, then memorised records, then self-reported passages. If none exist, it shows an honest message.
 - Workload hint: when 5 or more places need review, the app suggests reducing new memorisation. It is never enforced.
 
+### 3.1 Mushaf-based selection and long memorization scopes
+
+**NEW · FUNCTIONAL:** `learning/selector.tsx` is the shared «ابدأ الحفظ» selector. Entry points are the Surah index, Juz index, current Mushaf page, selected-ayah action menu, Guided start and Free memorization.
+
+Supported scopes:
+- Entire Surah.
+- One ayah, from one ayah to the end of its Surah, or an ayah range.
+- One page or a page range, including ranges crossing Surah boundaries.
+- Entire Juz.
+
+Before starting, the selector shows the exact canonical endpoints, page range, ayah count and learning-chunk count. It also asks for Guided/Free experience and Focus/Mushaf presentation. «حفظ» is a separate ayah action from «تسميع»; listen, Tafsir, bookmark, copy and share remain unchanged.
+
+If an unfinished session exists, starting is blocked until the learner explicitly resumes it or confirms replacement. Replaced sessions are retained in `guided.saved` (up to eight), not silently discarded.
+
+**Shared scope architecture** (`learning/scope.ts`, `learning/store.ts`):
+- `MemorizationScope = { kind, g0, g1, label, fromPage, toPage, source }`.
+- `g0…g1` is the complete requested canonical range and is never truncated.
+- `scopeChunks()` uses the existing `chunksOf()` logic: every learning segment is ≤20 ayat and never crosses a Surah boundary.
+- `GuidedSession` stores the full `scope`, current `passage`, `segmentIndex`, `segmentResults`, card `idx`/outcomes, `presentation`, `experience` and return-to-Mushaf state.
+- Moving between segments saves and restores card outcomes. Segment practice never records memorization.
+- The scheduled «مهمة اليوم» uses the full task range. Manual selection calls `startScope()` directly, so the plan cannot silently replace it.
+
+Regression tests cover the full 110 ayat of Al-Kahf, a page range crossing Al-Fatiha/Al-Baqarah, segment resume, view switching without progress writes and explicit archival of an unfinished session.
+
+### 3.2 Synchronized Focus and Mushaf views
+
+`GuidedSession.presentation` is persistent and shared by Guided and Free experiences.
+
+- **Focus View:** existing vertical Smart Feed / Free Ayah feed.
+- **Mushaf View:** `screens/guidedMushaf.tsx`.
+  - Loads the current page; `usePageState` prefetches only adjacent pages.
+  - Shows full verified page text, page number, Surah, current-ayah highlight, previous/next page, zoom, audio ×3 and Tafsir.
+  - Keeps the same session, card, full scope, segment and assessment outcomes.
+  - Opening the Digital Mushaf and returning restores the same Guided/Free session.
+
+This is a **verified full-page context view**, not authentic fixed-layout visual memorization. The UI states that it uses the current flowing renderer.
+
+### 3.3 Progressive full-page hiding
+
+`MushafPage`/`PageText` now accepts an optional `VisualMask`:
+- `visibility(s, a, wordIndex) → shown | hidden | first`.
+- `onWord(s, a, wordIndex)` for graduated reveal.
+- Stable `data-word="surah:ayah:index"` keys prepare authoritative Tilawa mapping.
+
+Modes: full text, hide words, hide current ayah, hide confirmed-memorized ayat, progressive page hiding and recitation without looking. Controls reveal the first letter, selected word, current ayah or whole page, and reset the exercise.
+
+The exact original word remains in flow with `visibility:hidden`, preserving its measured dimensions in the current layout. It is `aria-hidden`; the replacement control exposes instructions but not the answer. This prevents reflow and screen-reader answer leakage, but does not create unavailable printed-page coordinates.
+
 ## 4. Adaptive learning (methodology mapping)
 
 | Stage | Where |
@@ -105,7 +153,7 @@ Status labels used below:
 | ثبّت | `complete` card and the Revision retention section |
 
 - The existing six-step `MemorizePanel` in Free mode is preserved unchanged.
-- **Visual Mushaf memorisation (fixed layout): BLOCKED on data.** It needs per-page line and word geometry for the 15-line Madinah Mushaf, for example QPC/KFGQPC word-by-word layout with `page`, `line`, `position` and `glyph` for every word, under a usable licence. Current pages reflow text, so the app makes no claim of authentic geometry.
+- **Visual Mushaf memorisation (fixed layout): BLOCKED on data.** Repository inspection found verified KFGQPC Hafs text, page starts/ends and fonts, but no licensed printed-page line/word geometry or authentic page images. It needs edition-matched data for every word/glyph with at least `page`, `line`, order, x/y or fixed advance, ayah-marker geometry, Surah-header/Bismillah geometry, opening-page exceptions and a documented redistribution licence. The data must match the bundled KFGQPC Hafs text/font version exactly. Line-start and spatial-location exercises remain unavailable; the current renderer makes no claim of authentic geometry.
 
 ## 5. Retention (`screens/retention.tsx`, inside Revision)
 
@@ -146,6 +194,8 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 - **Not installed:** `@tilawa/core` (https://github.com/yazinsai/tilawa) is not installed and no weights are downloaded. The live status is always «محرك التسميع غير محمّل · غير متاح».
 - **Contracts** (`learning/contracts.ts`): `TilawaEngine` (`supports`, `load(variant, onProgress, signal)`, `start`, `stop`, `release`), `TilawaEvent` (identified, word, uncertain, lost, mistake suspected/confirmed, self-corrected, end) and `TilawaState` (16 UI states).
   - Every event must map to authoritative Hafs `(s, a, wordIndex)`.
+  - Focus and Mushaf presentations share one engine owner; switching views must not start another engine.
+  - Flowing pages expose the same authoritative `data-word` keys. A future fixed-layout renderer must map those keys to verified page coordinates.
   - Only the `supports` categories are shown.
 - **UI** (`screens/tilawa.tsx`):
   - Passage and free-start modes.
@@ -175,7 +225,7 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
   - Functional icons stay in `components/Icon`.
   - Still to cover: Azkar sub-types, Dua, Tasbeeh, Plans, Week, Map, Library, Kids and Bookmarks. Several already have isometric art in `iso.tsx`.
   - Gradient colours are fixed hex values. Checking them in dark mode is NOT VERIFIED.
-- **Hero Mushaf:** `quranBook.tsx` (EXISTING). Pages 1–2 show real text via `usePageState`. Clicking it continues reading. Progress uses the ribbon and glow and never recolours the text. Lines reflow because no line layout data exists.
+- **Hero Mushaf:** `quranBook.tsx`. The initial visual is permanently page 1 on the right (complete Al-Fatiha) and page 2 on the left (the beginning of Al-Baqarah), loaded through `usePageState` from the verified KFGQPC Hafs files and actual project page mapping. It uses the Uthmani font, source-aware Bismillah, ayah markers, a larger near-overhead text plane, curved paper, layered page edges, a shaded gutter, cover edges and a wooden rehal. Clicking it still opens the user's actual continue-reading page. Progress uses the ribbon and glow and never recolours Quran text. Lines reflow because no line/word coordinate data exists; the component deliberately does not claim fixed printed-page geometry.
 - **Accessibility:**
   - RTL throughout.
   - Card navigation never depends on swipe alone.
@@ -186,10 +236,13 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 
 **New files:**
 - `learning/contracts.ts`
+- `learning/scope.ts`
+- `learning/selector.tsx`
 - `learning/sequence.ts`
 - `learning/store.ts`
 - `illustrations.tsx`
 - `screens/guided.tsx`
+- `screens/guidedMushaf.tsx`
 - `screens/retention.tsx`
 - `screens/tilawa.tsx`
 - `screens/settings.tsx`
@@ -200,7 +253,9 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 - `NextPreview.tsx` (screens, notes)
 - `session.tsx` (`setNoteAt`, `setMemAt`)
 - `storageSafety.tsx` (store name)
-- `screens/ayah.tsx` (exports only)
+- `screens/ayah.tsx` (Free scope and synchronized Mushaf presentation)
+- `screens/mushaf.tsx`, `screens/mushafIndex.tsx` (memorization entry points and return flow)
+- `studio/mushaf/actions.tsx`, `desktop.tsx`, `mobile.tsx`, `page.tsx` (separate Hifz action and dimension-preserving masks)
 - `screens/home.tsx`
 - `screens/revision.tsx`
 - `screens/recite.tsx` (restructure; Muaalem flow unchanged inside `MuaalemLab`)
@@ -222,9 +277,9 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 
 - `pnpm exec tsc --noEmit`: clean.
 - `pnpm run build`: succeeds. The only warning is the existing chunk-size warning.
-- `node src/studio/next/tests/preview.test.mjs`: 26 / 27 pass.
-  - The new G1–G5 tests cover the sequence, the outcome rule, time fitting, the summary, store integrity and quarantine.
+- `node src/studio/next/tests/preview.test.mjs`: 31 / 32 pass.
+  - G1–G9 cover the sequence, outcome rule, time fitting, store integrity, full Al-Kahf scope, cross-Surah page ranges, chunk resume, presentation switching and unfinished-session archival.
   - **S5 fails for a pre-existing reason:** it runs `git show 59c6301`, and that commit is not in this repository's history.
-- `node src/studio/next/tests/render.smoke.mjs`: 94 / 94 renders.
-  - Covers all screens on mobile and desktop, plus the guided start/running, home resume, retention, Tilawa and model-manager states.
+- `node src/studio/next/tests/render.smoke.mjs`: 100 / 100 renders.
+  - Covers all screens on mobile and desktop, plus Guided Focus/Mushaf presentation, Mushaf memorization entry, home resume, retention, Tilawa and model-manager states.
 - **NOT VERIFIED:** live browser interaction (the preview browser was not connected), real devices, dark mode, all palettes, long-ayah layouts on small screens, and screen readers.

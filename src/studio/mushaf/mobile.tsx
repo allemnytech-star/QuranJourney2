@@ -151,9 +151,10 @@ type Drive = {
   /** Shared ayah focus from the host (applied once while fresh). */
   focus?: NavFocus | null
   onRecite?: (s: number, a: number) => void
+  onMemorize?: (s: number, a: number) => void
 }
 
-export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onView, onGo, onBack, focus = null, onRecite }: { pg: number; view: MobileView; tone: Tone; setTone: (t: Tone) => void; label: string } & Drive) {
+export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onView, onGo, onBack, focus = null, onRecite, onMemorize }: { pg: number; view: MobileView; tone: Tone; setTone: (t: Tone) => void; label: string } & Drive) {
   const page = usePageState(pg)
   const d = page.d
   const [mode, setMode] = useState<Mode>('mushaf')
@@ -161,7 +162,7 @@ export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onVie
   const [tap, setTap] = useState<{ s: number; a: number } | null>(null)
   const area = useRef<HTMLDivElement>(null)
   const flash = useFocus(area, d, focus)
-  const acts = useAyahActions(onRecite)
+  const acts = useAyahActions(onRecite, onMemorize)
   const live = !!onView // host-driven: actions and audio are real
   const goTo: Go | undefined = onGo && ((n, f) => (setTap(null), onGo(clampPage(n), f), onView?.('reading')))
   useEffect(() => setTap(null), [pg])
@@ -214,7 +215,7 @@ export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onVie
           text={pick.t}
           hafs={pickHafs}
           onClose={close}
-          onAct={live ? (act) => (acts.run(act, pickS, pick.a, pick.t), act === 'tafsir' ? onView?.('tafsir') : act === 'play' || act === 'mic' ? onView?.('reading') : undefined) : undefined}
+          onAct={live ? (act) => (acts.run(act, pickS, pick.a, pick.t), act === 'tafsir' ? onView?.('tafsir') : act === 'play' || act === 'mic' || act === 'hifz' ? onView?.('reading') : undefined) : undefined}
           label={live ? (act) => acts.label(act, pickS, pick.a) : undefined}
         />
       )}

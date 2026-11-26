@@ -89,7 +89,7 @@ export function AyahMenu({ s, a, style, caret = 'bottom', onClose, onAct, label 
           </button>
         )}
       </div>
-      <div className="grid grid-cols-6 gap-1">
+      <div className="grid grid-cols-7 gap-1">
         {ACTS.map((x) => (
           <button key={x.id} type="button" role="menuitem" onClick={onAct && (() => onAct(x.id))} aria-disabled={!onAct} title={onAct ? undefined : 'عرض توضيحي'} className="mp-press flex flex-col items-center gap-1 rounded-[14px] py-2 text-[11.5px] text-(--ui-ink)/80 hover:bg-(--ui-ink)/[.06]">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--ui-ink)/[.05]">
@@ -190,7 +190,7 @@ function Toggle({ l, on: init = false }: { l: string; on?: boolean }) {
  * every navigation out, so several frames can share one position. Page turns and
  * page input pass no focus, which clears any previous ayah focus.
  */
-export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onRecite }: { nav: MushafNav; onGo: Go; tone: Tone; setTone: (t: Tone) => void; auto?: boolean; onBack?: () => void; onRecite?: (s: number, a: number) => void }) {
+export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onRecite, onMemorize }: { nav: MushafNav; onGo: Go; tone: Tone; setTone: (t: Tone) => void; auto?: boolean; onBack?: () => void; onRecite?: (s: number, a: number) => void; onMemorize?: (s: number, a: number) => void }) {
   const pg = pos.pg
   const page = usePageState(pg)
   const d = page.d
@@ -203,7 +203,7 @@ export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onR
   const [sel, setSel] = useState<{ s: number; a: number; x: number; y: number } | null>(null)
   const area = useRef<HTMLDivElement>(null)
   const flash = useFocus(area, d, pos.focus)
-  const acts = useAyahActions(onRecite)
+  const acts = useAyahActions(onRecite, onMemorize)
   const first = pg <= 1
   const last = pg >= TOTAL_PAGES
   const go: Go = (n, f) => (onGo(clampPage(n), f), setSel(null), setNav(null))

@@ -12,6 +12,7 @@ import { useSession } from '../session'
 import { DataBar } from '../previewUi'
 import { useStartTask } from '../taskNav'
 import { IsoQuranBook } from '../quranBook'
+import { IsoJourneyIcon, type JourneyIconId } from '../journeyIcons'
 import { useGuided } from '../learning/store'
 import { PRESET_AR } from '../learning/contracts'
 import { useStartGuided } from './guided'
@@ -74,10 +75,10 @@ export function HomeDashboard() {
   const bookState = qTotal === 0 ? 'rest' : qDone === qTotal ? 'done' : 'open'
   const bookLabel = `مصحف مفتوح على حامل، على الصفحتين الأولى (سورة الفاتحة) والثانية (أول سورة البقرة). ${qTotal ? `أُنجز ${toAr(qDone)} من ${toAr(qTotal)} من مهام اليوم.` : 'لا مهام اليوم.'} اضغط لمتابعة القراءة من الصفحة ${toAr(continuePg)}.`
 
-  const journeys = [
-    { id: 'quran', title: 'رحلة القرآن', icon: 'book', v: qTotal ? qDone / qTotal : 0, label: qTotal ? `${toAr(qDone)} من ${toAr(qTotal)}` : 'يوم راحة', color: 'var(--color-leaf)', go: () => go('ayah') },
-    { id: 'azkar', title: 'رحلة الأذكار', icon: now === 'morning' ? 'sun' : 'moon', v: azNow.total ? azNow.done / azNow.total : 0, label: `${toAr(azNow.done)} من ${toAr(azNow.total)}`, color: 'var(--color-gold)', go: () => go('azkar-list', now) },
-    { id: 'tadabbur', title: 'رحلة التدبّر', icon: 'sparkle', v: reflections ? 1 : 0, label: reflections ? `${toAr(reflections)} ${reflections >= 3 && reflections <= 10 ? 'تأمّلات' : 'تأمّل'}` : 'لم تبدأ', color: 'var(--color-sky)', go: () => go('ayah') },
+  const journeys: { id: JourneyIconId; title: string; v: number; label: string; color: string; go: () => void }[] = [
+    { id: 'quran', title: 'رحلة القرآن', v: qTotal ? qDone / qTotal : 0, label: qTotal ? `${toAr(qDone)} من ${toAr(qTotal)}` : 'يوم راحة', color: 'var(--color-leaf)', go: () => go('ayah') },
+    { id: 'azkar', title: 'رحلة الأذكار', v: azNow.total ? azNow.done / azNow.total : 0, label: `${toAr(azNow.done)} من ${toAr(azNow.total)}`, color: 'var(--color-gold)', go: () => go('azkar-list', now) },
+    { id: 'tadabbur', title: 'رحلة التدبّر', v: reflections ? 1 : 0, label: reflections ? `${toAr(reflections)} ${reflections >= 3 && reflections <= 10 ? 'تأمّلات' : 'تأمّل'}` : 'لم تبدأ', color: 'var(--color-sky)', go: () => go('ayah') },
   ]
 
   const hero = (
@@ -86,22 +87,34 @@ export function HomeDashboard() {
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] backdrop-blur"><Icon name="calendar" size={14} />{hijri}</span>
         <span className="ms-auto rounded-full bg-white/90 text-night"><DataBar compact /></span>
       </div>
-      {/* Copy and the live Mushaf side by side on desktop. On a phone the Mushaf takes the full width under the
-          title, because its pages carry the real Quran text and must stay large enough to read. */}
-      <div className={desk ? 'mt-4 flex items-center gap-6' : 'mt-4 flex flex-col'} dir="ltr">
-        <div className={desk ? 'min-w-0 flex-1' : 'w-full'} dir="rtl">
-          <p className="text-[15px] text-white/80" data-greeting>{greet}، أهلًا بك</p>
-          <h1 className={`mt-1.5 font-bold leading-[1.3] ${desk ? 'text-[2.2rem]' : 'text-[1.6rem]'}`}>رحلتك اليوم</h1>
-          <p className="mt-1 text-[14px] leading-relaxed text-white/80">احفظ بفهم، وثبّت بذكاء.</p>
-          <button type="button" onClick={daily} className="press mt-4 inline-flex h-12 items-center gap-2 rounded-full bg-white px-5 text-[14.5px] font-semibold text-night shadow-[0_10px_24px_-12px_rgba(0,0,0,.5)]" data-start-today>
-            <Icon name="play" size={16} fill />{open ? 'تابع ورد اليوم' : 'ابدأ ورد اليوم'}
+      {/* Copy and the live Mushaf side by side (Mushaf on the right, aligned with the greeting and title). */}
+      <div className={`mt-4 flex items-center ${desk ? 'gap-6' : 'gap-3'}`} dir="ltr">
+        <div className="min-w-0 flex-1" dir="rtl">
+          <p className={`${desk ? 'text-[15px]' : 'text-[13.5px]'} text-white/80`} data-greeting>{greet}، أهلًا بك</p>
+          <h1 className={`mt-1 font-bold leading-[1.3] ${desk ? 'text-[2.2rem]' : 'text-[1.45rem]'}`}>رحلتك اليوم</h1>
+          <p className={`mt-1 leading-relaxed text-white/80 ${desk ? 'text-[14px]' : 'text-[12.5px]'}`}>احفظ بفهم، وثبّت بذكاء.</p>
+          {desk && (
+            <>
+              <button type="button" onClick={daily} className="press mt-4 inline-flex h-12 items-center gap-2 rounded-full bg-white px-5 text-[14.5px] font-semibold text-night shadow-[0_10px_24px_-12px_rgba(0,0,0,.5)]" data-start-today>
+                <Icon name="play" size={16} fill />{open ? 'تابع ورد اليوم' : 'ابدأ ورد اليوم'}
+              </button>
+              {open && <p className="mt-2 text-[12px] text-white/80" data-resume>جلسة غير مكتملة: {PRESET_AR[open.preset].ar} · سورة {surah(open.passage.s).ar} · البطاقة {toAr(open.idx + 1)}</p>}
+              {startMsg && <p role="alert" className="mt-2 rounded-xl bg-white/90 px-3 py-1.5 text-[12px] text-clay">{startMsg}</p>}
+            </>
+          )}
+        </div>
+        {/* Always open to pages 1–2 (Al-Fatiha, start of Al-Baqarah); a click opens the reader where you left off. */}
+        <IsoQuranBook progress={qTotal ? qDone / qTotal : 0} state={bookState} onOpen={continueReading} label={bookLabel} className={`shrink-0 drop-shadow-[0_18px_22px_rgba(0,0,0,.2)] ${desk ? 'w-[220px]' : 'w-[132px]'}`} />
+      </div>
+      {!desk && (
+        <div className="mt-3">
+          <button type="button" onClick={daily} className="press inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[14px] font-semibold text-night shadow-[0_10px_24px_-12px_rgba(0,0,0,.5)]" data-start-today>
+            <Icon name="play" size={15} fill />{open ? 'تابع ورد اليوم' : 'ابدأ ورد اليوم'}
           </button>
           {open && <p className="mt-2 text-[12px] text-white/80" data-resume>جلسة غير مكتملة: {PRESET_AR[open.preset].ar} · سورة {surah(open.passage.s).ar} · البطاقة {toAr(open.idx + 1)}</p>}
           {startMsg && <p role="alert" className="mt-2 rounded-xl bg-white/90 px-3 py-1.5 text-[12px] text-clay">{startMsg}</p>}
         </div>
-        {/* Always open to pages 1–2 (Al-Fatiha, start of Al-Baqarah); a click opens the reader where you left off. */}
-        <IsoQuranBook progress={qTotal ? qDone / qTotal : 0} state={bookState} onOpen={continueReading} label={bookLabel} className={`shrink-0 drop-shadow-[0_18px_22px_rgba(0,0,0,.2)] ${desk ? 'w-[440px]' : 'mx-auto mt-3 w-full max-w-[360px]'}`} />
-      </div>
+      )}
       <div className="mt-4" data-hero-progress>
         <div className="flex items-center gap-3">
           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/25" role="progressbar" aria-valuemin={0} aria-valuemax={6236} aria-valuenow={pd.memCount} aria-label="الآيات المحفوظة من القرآن">
@@ -118,12 +131,15 @@ export function HomeDashboard() {
   )
 
   const trio = (
-    <div className={`relative z-10 grid grid-cols-3 gap-2 rounded-[28px] bg-card p-3 shadow-[0_24px_50px_-28px_rgba(16,24,40,.5)] ring-1 ring-line ${desk ? '-mt-20 mx-6' : '-mt-16 mx-5'}`}>
+    <div className={`relative z-10 grid grid-cols-3 rounded-[28px] bg-card shadow-[0_24px_50px_-28px_rgba(16,24,40,.5)] ring-1 ring-line ${desk ? '-mt-20 mx-6 gap-3 p-3.5' : '-mt-16 mx-5 gap-1.5 p-2.5'}`}>
       {journeys.map((j) => (
-        <button key={j.id} type="button" onClick={j.go} className="press flex flex-col items-center gap-2 rounded-[20px] px-1 py-3 hover:bg-night/[.03]">
-          <Ring v={j.v} color={j.color} size={desk ? 72 : 60}><Icon name={j.icon} size={desk ? 24 : 20} /></Ring>
-          <span className="text-[13px] font-semibold">{j.title}</span>
-          <span className="text-[11.5px] text-muted">{j.label}</span>
+        <button key={j.id} type="button" onClick={j.go} className={`iso-hit press flex flex-col items-center rounded-[20px] hover:bg-night/[.03] ${desk ? 'gap-2 px-3 py-3' : 'gap-1 px-1 py-2.5'}`}>
+          <IsoJourneyIcon id={j.id} v={j.v} color={j.color} time={now} size={desk ? 88 : 66} />
+          <span className={`font-semibold leading-tight ${desk ? 'text-[14px]' : 'text-[12.5px]'}`}>{j.title}</span>
+          <span className={`text-muted ${desk ? 'text-[12px]' : 'text-[11px]'}`}>{j.label}</span>
+          <span className={`mt-0.5 block h-1 overflow-hidden rounded-full bg-night/10 ${desk ? 'w-16' : 'w-11'}`} aria-hidden>
+            <span className="block h-full rounded-full" style={{ width: `${j.v > 0 ? Math.max(12, Math.round(j.v * 100)) : 0}%`, background: j.color }} />
+          </span>
         </button>
       ))}
     </div>

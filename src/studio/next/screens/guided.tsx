@@ -12,11 +12,14 @@ import { Chrome, Head, Icon, toAr, useDevice, useProto } from '../core'
 import { chunksOf, actions as progress, usePreview, weekTasks } from '../progress'
 import { akey, passageAyat, useSession, type Passage } from '../session'
 import { firstLetter, fromGIndex, juzOf, pageOf, surah, words } from '../../../lib/quran'
-import { LoadState, PassagePicker, TafsirSnippet, textSize, useAudio, useAyat, type Audio } from './ayah'
+import { LoadState, TafsirSnippet, textSize, useAudio, useAyat, type Audio } from './ayah'
 import { ASSESS_AR, PREFERENCE_AR, PRESET_AR, type CardOutcome, type GuidedCard, type LearningPreference, type RecallOutcome, type SessionPreset } from '../learning/contracts'
 import { buildSequence, fitToMinutes, followUps, summarize } from '../learning/sequence'
 import { guided, useGuided, type GuidedSession } from '../learning/store'
 import { Illustration } from '../illustrations'
+import { MemorizationSelector } from '../learning/selector'
+import { scopeChunks, scopeOfCanonical, scopeSummary } from '../learning/scope'
+import { GuidedMushafView } from './guidedMushaf'
 
 const TYPE_AR: Record<GuidedCard['type'], { ar: string; icon: string; goal: string }> = {
   intro: { ar: 'تمهيد', icon: 'book', goal: 'تعرّف على المقطع' },
@@ -43,9 +46,13 @@ export function useStartGuided() {
     const p = ses.s.passage
     let target: Passage | null = null
     if (preset === 'daily') {
-      const t = weekTasks(st).find((d) => d.today)?.tasks.find((x) => x.activity === 'hifz' && x.state === 'open' && x.g0 && x.g1)
-      const c = t ? chunksOf(t.g0!, t.g1!)[0] : null
-      target = c ? { s: c.s, from: c.from, to: c.to } : p
+      const t = weekTasks(st).find((d) => d.today)?.tasks.find((x) => x.activity === 'hifz' && x.state === 'open' && x.g0 != null && x.g1 != null)
+      if (t?.g0 != null && t.g1 != null) {
+        if (!guided.startScope(scopeOfCanonical(t.g0, t.g1, `مهمة اليوم · ${t.plan.name}`, 'plan'), preset, minutes, 'focus', 'guided')) return 'تعذّر بدء مهمة اليوم.'
+        go('guided')
+        return null
+      }
+      target = p
     } else if (preset === 'five') target = p
     else if (preset === 'tadabbur-moment') target = { s: p.s, from: ses.s.cur, to: ses.s.cur }
     else if (preset === 'minute') {
@@ -101,14 +108,20 @@ function GuidedStart({ last }: { last: GuidedSession | null }) {
           <div className="flex items-center gap-4">
             <Illustration id="guided" size={desk ? 72 : 60} />
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] text-muted">المقطع</p>
+              <p className="text-[12px] text-muted">المقطع اليدوي الحالي</p>
               <p className="text-[16px] font-semibold" data-guided-passage>{refAr(p.s, p.from, p.to)}</p>
-              <button type="button" onClick={() => setPicker(true)} className="press mt-1 text-[12.5px] font-semibold text-gold underline">تغيير المقطع</button>
+              <button type="button" onClick={() => setPicker(true)} className="press mt-1 text-[12.5px] font-semibold text-gold underline">اختر سورة أو آيات أو صفحات أو جزءًا</button>
             </div>
           </div>
-          <button type="button" onClick={() => run('daily')} className="press mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-night py-3.5 text-[15px] font-semibold text-parchment" data-start-daily>
-            <Icon name="play" size={17} fill />ابدأ ورد اليوم
-          </button>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => run('daily')} className="press flex h-13 items-center justify-center gap-2 rounded-full bg-night py-3.5 text-[14px] font-semibold text-parchment" data-start-daily>
+              <Icon name="calendar" size={17} />ابدأ مهمة اليوم المجدولة
+            </button>
+            <button type="button" onClick={() => setPicker(true)} className="press flex h-13 items-center justify-center gap-2 rounded-full bg-gold py-3.5 text-[14px] font-semibold text-white" data-start-manual>
+              <Icon name="sprout" size={17} />اختر ما تريد حفظه
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted">المهمة المجدولة تستخدم خطة اليوم. الاختيار اليدوي يستخدم النطاق الذي تؤكّده أنت ولا تستبدله الخطة.</p>
           {msg && <p role="alert" className="mt-3 rounded-[14px] bg-clay/10 px-3 py-2 text-[12.5px] text-clay">{msg}</p>}
           {needs >= 5 && <p className="mt-3 rounded-[14px] bg-gold-soft/60 px-3 py-2 text-[12.5px]">لديك {toAr(needs)} مواضع تحتاج مراجعة. نقترح تقليل الحفظ الجديد اليوم والبدء بـ«تثبيت سريع».</p>}
         </section>
@@ -152,7 +165,7 @@ function GuidedStart({ last }: { last: GuidedSession | null }) {
           <button type="button" onClick={() => go('ayah')} className="press flex items-center gap-3 rounded-[20px] bg-card p-3.5 text-start ring-1 ring-line"><Illustration id="free" size={40} /><span><span className="block text-[13.5px] font-semibold">الحفظ الحر</span><span className="block text-[11.5px] text-muted">تصفّح الآيات واختر تمارينك</span></span></button>
           <button type="button" onClick={() => go('revision')} className="press flex items-center gap-3 rounded-[20px] bg-card p-3.5 text-start ring-1 ring-line"><Illustration id="retention" size={40} /><span><span className="block text-[13.5px] font-semibold">تثبيت المحفوظ</span><span className="block text-[11.5px] text-muted">المراجعة ومواضع الضعف</span></span></button>
         </div>
-        {picker && <PassagePicker onClose={() => setPicker(false)} />}
+        {picker && <MemorizationSelector onClose={() => setPicker(false)} />}
       </div>
     </Chrome>
   )
@@ -175,6 +188,8 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
   const desk = useDevice() === 'desktop'
   const { go } = useProto()
   const p = gs.passage
+  const chunks = scopeChunks(gs.scope)
+  const scope = scopeSummary(gs.scope)
   const seq = useMemo(() => followUps(fitToMinutes(buildSequence(p, gs.preference, gs.preset), gs.minutes), gs.done), [p, gs.preference, gs.preset, gs.minutes, gs.done])
   const idx = Math.min(gs.idx, seq.length - 1)
   const text = useAyat(p)
@@ -228,7 +243,7 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
   }
 
   const slides = seq.map((c, i) => (
-    <section key={c.id} data-card={c.type} aria-label={`البطاقة ${i + 1} من ${seq.length}: ${TYPE_AR[c.type].ar}`} className={`flex h-full snap-start snap-always flex-col ${desk ? 'justify-center px-12 py-8' : 'px-5 pb-32 pt-[132px]'}`}>
+    <section key={c.id} data-card={c.type} aria-label={`البطاقة ${i + 1} من ${seq.length}: ${TYPE_AR[c.type].ar}`} className={`flex h-full snap-start snap-always flex-col ${desk ? 'justify-center px-12 py-8' : 'px-5 pb-32 pt-[220px]'}`}>
       <div className={`no-scrollbar mx-auto w-full overflow-y-auto ${desk ? 'max-w-[720px]' : ''}`}>
         <p className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-muted">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-soft px-2.5 py-1 font-semibold text-night"><Icon name={TYPE_AR[c.type].icon} size={13} />{TYPE_AR[c.type].ar}</span>
@@ -240,6 +255,11 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
         <div className="mt-4">
           {text.status !== 'ready' && c.type !== 'intro' ? (
             <LoadState status={text.status} retry={text.retry} />
+          ) : gs.presentation === 'mushaf' ? (
+            <div>
+              <GuidedMushafView s={c.s} a={c.from} />
+              <button type="button" onClick={() => guided.setPresentation('focus')} className="press mt-3 h-10 w-full rounded-full bg-gold-soft text-[12.5px] font-semibold">أكمل نشاط «{TYPE_AR[c.type].ar}» في وضع الآية</button>
+            </div>
           ) : (
             <CardBody c={c} gs={gs} seq={seq} ayah={ayah} hafs={text.hafs} audio={audio} active={i === idx} onRecord={(o) => record(c, o)} onNext={() => move(i + 1)} />
           )}
@@ -262,6 +282,21 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
       <span className="text-[12px] tabular-nums text-muted" data-card-pos>{toAr(idx + 1)} / {toAr(seq.length)}</span>
     </div>
   )
+  const viewSwitch = (
+    <div role="radiogroup" aria-label="طريقة عرض الحفظ" className="inline-flex rounded-full bg-night/[.06] p-1 text-[11.5px]" data-presentation-switch>
+      {([['focus', 'وضع الآية', 'layers'], ['mushaf', 'وضع المصحف', 'book']] as const).map(([k, l, icon]) => (
+        <button key={k} type="button" role="radio" aria-checked={gs.presentation === k} onClick={() => guided.setPresentation(k)} className={`press flex h-8 items-center gap-1 rounded-full px-3 ${gs.presentation === k ? 'bg-card font-semibold shadow-sm' : 'text-muted'}`}><Icon name={icon} size={13} />{l}</button>
+      ))}
+    </div>
+  )
+  const scopeBar = (
+    <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-gold-soft/45 px-3 py-2 text-[11.5px]" data-scope-progress>
+      <span className="min-w-0 flex-1"><b>{scope.label}</b> · المقطع {toAr(gs.segmentIndex + 1)} من {toAr(chunks.length)} · {toAr(Object.keys(gs.segmentResults).length)} مقاطع ممارَسة</span>
+      <select aria-label="مقاطع نطاق الحفظ" value={gs.segmentIndex} onChange={(e) => guided.setSegment(Number(e.target.value))} className="h-8 max-w-[260px] rounded-full bg-card px-3 ring-1 ring-line">
+        {chunks.map((x, i) => <option key={x.id} value={i}>{gs.segmentResults[x.id] ? '✓ ' : ''}المقطع {toAr(i + 1)} · {surah(x.s).ar} {toAr(x.from)}–{toAr(x.to)}</option>)}
+      </select>
+    </div>
+  )
   const navBtns = (
     <div className="flex gap-2">
       <button type="button" onClick={() => move(idx - 1)} disabled={idx === 0} aria-label="البطاقة السابقة" className="press glass-panel flex h-11 w-11 items-center justify-center rounded-full disabled:opacity-35" data-prev><Icon name="chevron" className="-rotate-90" /></button>
@@ -282,9 +317,10 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
                 <p className="font-arabic-display text-[19px] font-bold">رحلتي الموجّهة · {PRESET_AR[gs.preset].ar}</p>
                 <p className="text-[12.5px] text-muted">{refAr(p.s, p.from, p.to)} · {PREFERENCE_AR[gs.preference].ar}</p>
               </div>
+              {viewSwitch}
               <button type="button" onClick={pause} className="press flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] ring-1 ring-line" data-pause><Icon name="pause" size={14} />أوقف مؤقتًا</button>
             </div>
-            <div className="px-8 pt-3">{bar}</div>
+            <div className="space-y-2 px-8 pt-3">{scopeBar}{bar}</div>
             <div className="relative min-h-0 flex-1">
               {feedEl}
               <div className="absolute bottom-5 start-5">{navBtns}</div>
@@ -326,6 +362,8 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
             <span className="w-10" />
           </div>
           <div className="mt-2">{bar}</div>
+          <div className="mt-2 flex justify-center">{viewSwitch}</div>
+          <div className="mt-2">{scopeBar}</div>
         </div>
         <div className="absolute bottom-7 start-4 z-30">{navBtns}</div>
       </div>
@@ -595,6 +633,8 @@ function Completion({ gs, seq }: { gs: GuidedSession; seq: GuidedCard[] }) {
   const ses = useSession()
   const sum = summarize(seq, gs.done)
   const p = gs.passage
+  const chunks = scopeChunks(gs.scope)
+  const hasNext = gs.segmentIndex < chunks.length - 1
   const confirmed = (a: number) => ses.s.mem[akey(p.s, a)] === 'mastered'
   const assessed = [...sum.independent, ...sum.hints, ...sum.needs].sort((x, y) => x - y)
   const line = (label: string, list: number[], tone: string) => (
@@ -629,7 +669,11 @@ function Completion({ gs, seq }: { gs: GuidedSession; seq: GuidedCard[] }) {
       </div>
       <p className="mt-3 rounded-[16px] bg-night/[.04] px-3 py-2 text-[12px] text-muted">موعد المراجعة القادمة: يحدّده محرك المراجعة الذكية عند تفعيله. لم يُجدول أي موعد بعد.</p>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => (guided.finish(), go('home'))} className="press h-12 rounded-full bg-night text-[13.5px] font-semibold text-parchment" data-finish>أنهِ الجلسة</button>
+        {hasNext ? (
+          <button type="button" onClick={() => guided.setSegment(gs.segmentIndex + 1, true)} className="press h-12 rounded-full bg-night text-[13.5px] font-semibold text-parchment" data-next-segment>احفظ المقطع التالي · {toAr(gs.segmentIndex + 2)}/{toAr(chunks.length)}</button>
+        ) : (
+          <button type="button" onClick={() => (guided.finish(), go('home'))} className="press h-12 rounded-full bg-night text-[13.5px] font-semibold text-parchment" data-finish>أنهِ النطاق</button>
+        )}
         <button type="button" onClick={() => (guided.finish(), go('revision'))} className="press h-12 rounded-full text-[13.5px] ring-1 ring-line">إلى تثبيت المحفوظ</button>
       </div>
     </div>

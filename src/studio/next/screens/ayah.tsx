@@ -13,6 +13,10 @@ import { actions as progress, chunksOf, derived, rangeAr, today, usePreview, typ
 import { setActiveTask, useActiveTask } from '../taskNav'
 import { Confirm } from '../previewUi'
 import { gIndex } from '../../../lib/quran'
+import { MemorizationSelector } from '../learning/selector'
+import { guided, useGuided } from '../learning/store'
+import { scopeChunks, scopeSummary } from '../learning/scope'
+import { GuidedMushafView } from './guidedMushaf'
 
 type Panel = PanelId
 const pkeyOf = (p: Passage) => `${p.s}:${p.from}-${p.to}`
@@ -83,6 +87,8 @@ export function AyahJourney() {
   const device = useDevice()
   const { go } = useProto()
   const ses = useSession()
+  const guidedState = useGuided()
+  const freeScope = guidedState.session?.experience === 'free' && !guidedState.session.finishedAt ? guidedState.session : null
   const { passage: p, cur, intent, nonce } = ses.s
   const pkey = pkeyOf(p)
   const text = useAyat(p)
@@ -90,6 +96,7 @@ export function AyahJourney() {
   // Coming back from the Mushaf / extended search reopens the panel the user left from.
   const [panel, setPanel] = useState<Panel | null>(() => ses.s.away?.panel ?? (device === 'desktop' ? 'understand' : null))
   const [picker, setPicker] = useState(false)
+  const [scopePicker, setScopePicker] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   useEffect(() => {
     if (ses.s.away) ses.setAway(null)
@@ -173,7 +180,7 @@ export function AyahJourney() {
 
   // On mobile the task banner (range + passage navigation) sits in the top panel; keep verses clear of it.
   const taskOpen = useActiveTask()?.activity === 'hifz'
-  const slideCls = `relative flex snap-start snap-always flex-col ${device === 'desktop' ? 'h-full justify-center px-10' : `h-full px-6 pb-36 ${taskOpen ? 'pt-60' : 'pt-28'}`}`
+  const slideCls = `relative flex snap-start snap-always flex-col ${device === 'desktop' ? 'h-full justify-center px-10' : `h-full px-6 pb-36 ${taskOpen || freeScope ? 'pt-60' : 'pt-28'}`}`
   const slides = ready ? (
     text.ayat.map((t, i) => {
       const a = p.from + i
@@ -224,6 +231,10 @@ export function AyahJourney() {
     </>
   )
   const pickerEl = picker && <PassagePicker onClose={() => setPicker(false)} />
+  const scopePickerEl = scopePicker && <MemorizationSelector seed={{ kind: 'ayahs', s: p.s, from: p.from, to: p.to }} onClose={() => setScopePicker(false)} />
+
+  if (freeScope?.presentation === 'mushaf')
+    return <FreeMushafJourney session={freeScope} onSelect={() => setScopePicker(true)} selector={scopePickerEl} />
 
   if (device === 'desktop')
     return (
@@ -241,9 +252,11 @@ export function AyahJourney() {
                   </button>
                 </p>
               </div>
+              <button type="button" onClick={() => freeScope ? guided.setPresentation('mushaf') : setScopePicker(true)} className="press flex h-9 items-center gap-1.5 rounded-full bg-gold-soft px-3 text-[12px] font-semibold"><Icon name={freeScope ? 'book' : 'sprout'} size={14} />{freeScope ? 'وضع المصحف' : 'ابدأ الحفظ'}</button>
               {intentSwitch}
             </div>
             <HifzTaskBanner />
+            {freeScope && <FreeScopeBanner compact={false} />}
             <div className="relative min-h-0 flex-1">
               <div ref={feed} className="no-scrollbar h-full snap-y snap-mandatory overflow-y-auto" data-feed>{slides}</div>
               {ready && <Dots p={p} cur={cur} onPick={pick} />}
@@ -262,6 +275,7 @@ export function AyahJourney() {
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-6">{panelBody(activePanel(panels[0].id))}</div>
           </aside>
           {pickerEl}
+          {scopePickerEl}
         </div>
       </Chrome>
     )
@@ -278,10 +292,11 @@ export function AyahJourney() {
               <span className="text-[15px] font-semibold">رحلة الحفظ</span>
               <span className="flex items-center gap-1 text-[11.5px] text-muted" data-passage-label>{passageLabel}<Icon name="chevronDown" size={13} /></span>
             </button>
-            <span className="w-10" />
+            <button type="button" onClick={() => freeScope ? guided.setPresentation('mushaf') : setScopePicker(true)} aria-label={freeScope ? 'وضع المصحف' : 'ابدأ الحفظ'} className="press flex h-10 w-10 items-center justify-center rounded-full hover:bg-night/5"><Icon name={freeScope ? 'book' : 'sprout'} /></button>
           </div>
           {intentSwitch}
           <HifzTaskBanner compact />
+          {freeScope && <FreeScopeBanner compact />}
         </div>
         {ready && <Dots p={p} cur={cur} onPick={pick} />}
         {/* Action rail */}
@@ -317,6 +332,62 @@ export function AyahJourney() {
           </>
         )}
         {pickerEl}
+        {scopePickerEl}
+      </div>
+    </Chrome>
+  )
+}
+
+function FreeScopeBanner({ compact }: { compact: boolean }) {
+  const g = useGuided()
+  const ses = useSession()
+  const s = g.session?.experience === 'free' && !g.session.finishedAt ? g.session : null
+  if (!s) return null
+  const chunks = scopeChunks(s.scope)
+  const summary = scopeSummary(s.scope)
+  const move = (i: number) => {
+    const c = chunks[i]
+    if (!c || !guided.setSegment(i, true)) return
+    ses.setPassage({ s: c.s, from: c.from, to: c.to })
+  }
+  return (
+    <div className={`flex flex-wrap items-center gap-2 bg-gold-soft/45 text-[11.5px] ${compact ? 'w-full rounded-[14px] px-2.5 py-1.5' : 'border-b border-line/60 px-8 py-2'}`} data-free-scope>
+      <span className="min-w-0 flex-1"><b>{summary.label}</b> · المقطع {toAr(s.segmentIndex + 1)}/{toAr(chunks.length)}</span>
+      <select aria-label="مقاطع نطاق الحفظ" value={s.segmentIndex} onChange={(e) => move(Number(e.target.value))} className="h-8 max-w-[240px] rounded-full bg-card px-2 ring-1 ring-line">
+        {chunks.map((x, i) => <option key={x.id} value={i}>{s.segmentResults[x.id] ? '✓ ' : ''}{toAr(i + 1)}. {surah(x.s).ar} {toAr(x.from)}–{toAr(x.to)}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function FreeMushafJourney({ session, onSelect, selector }: { session: import('../learning/store').GuidedSession; onSelect: () => void; selector: ReactNode }) {
+  const ses = useSession()
+  const { go } = useProto()
+  const chunks = scopeChunks(session.scope)
+  const summary = scopeSummary(session.scope)
+  const c = chunks[session.segmentIndex]
+  const move = (i: number) => {
+    const x = chunks[i]
+    if (!x || !guided.setSegment(i, true)) return
+    ses.setPassage({ s: x.s, from: x.from, to: x.to })
+  }
+  return (
+    <Chrome bare dock={false}>
+      <div className="no-scrollbar h-full overflow-y-auto px-4 pb-8 pt-14">
+        <div className="mx-auto max-w-[760px]">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => go('home')} aria-label="رجوع" className="press flex h-10 w-10 items-center justify-center rounded-full ring-1 ring-line"><Icon name="back" className="rotate-180" /></button>
+            <div className="min-w-0 flex-1"><p className="text-[16px] font-semibold">الحفظ الحر · وضع المصحف</p><p className="text-[11.5px] text-muted">{summary.label} · المقطع {toAr(session.segmentIndex + 1)}/{toAr(chunks.length)}</p></div>
+            <button type="button" onClick={() => guided.setPresentation('focus')} className="press h-9 rounded-full bg-night px-3 text-[12px] font-semibold text-parchment"><Icon name="layers" size={13} className="me-1 inline" />وضع الآية</button>
+            <button type="button" onClick={onSelect} className="press h-9 rounded-full px-3 text-[12px] ring-1 ring-line">نطاق آخر</button>
+          </div>
+          <select aria-label="مقاطع نطاق الحفظ" value={session.segmentIndex} onChange={(e) => move(Number(e.target.value))} className="mb-3 h-9 w-full rounded-full bg-card px-3 text-[12px] ring-1 ring-line">
+            {chunks.map((x, i) => <option key={x.id} value={i}>{session.segmentResults[x.id] ? '✓ ' : ''}المقطع {toAr(i + 1)} · {surah(x.s).ar} {toAr(x.from)}–{toAr(x.to)}</option>)}
+          </select>
+          <GuidedMushafView s={ses.s.passage.s} a={ses.s.cur} />
+          {c && <p className="mt-3 text-center text-[11px] text-muted">عرض الصفحة أو إخفاء النص لا يُسجّل حفظًا. استخدم «أتقنتها» في وضع الآية للتأكيد.</p>}
+        </div>
+        {selector}
       </div>
     </Chrome>
   )

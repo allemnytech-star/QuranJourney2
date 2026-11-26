@@ -5,7 +5,7 @@
 // Madinah pages, but there is no line-level layout data or page imagery, so the
 // lines reflow and justify rather than reproducing the printed 15-line page.
 import { useEffect, useState, type ReactNode, type RefObject } from 'react'
-import { BISMILLAH, BISMILLAH_HAFS, JUZ, SURAHS, hasBismillahHeader, hizbOf, juzOf, loadMushaf, pageOf, surah, toAr } from '../../lib/quran'
+import { BISMILLAH, BISMILLAH_HAFS, JUZ, SURAHS, firstLetter, hasBismillahHeader, hizbOf, juzOf, loadMushaf, pageOf, surah, toAr } from '../../lib/quran'
 import { TOTAL_PAGES, clampPage, pageSpans, pageStart } from '../../lib/usePage'
 
 /** `hafs` is false when the KFGQPC Hafs file for that surah failed to load and the Tanzil text is shown instead. */
@@ -152,6 +152,11 @@ export { toAr }
 
 export type AyahState = 'selected' | 'playing'
 export type Marks = { state?: Record<string, AyahState>; bookmark?: string }
+export type WordVisibility = 'shown' | 'hidden' | 'first'
+export type VisualMask = {
+  visibility: (s: number, a: number, word: number) => WordVisibility
+  onWord?: (s: number, a: number, word: number) => void
+}
 const key = (s: number, a: number) => `${s}:${a}`
 
 /** Eight-point rosette used at frame corners and in the page medallion. */
@@ -205,7 +210,7 @@ export function Bookmark({ className = '' }: { className?: string }) {
 }
 
 /** Verified Quran text block for one page (no line-level layout data exists, so lines flow and justify). */
-export function PageText({ d, size, marks = {}, onAyah }: { d: PageData; size: number; marks?: Marks; onAyah?: (s: number, a: number, el: HTMLElement) => void }) {
+export function PageText({ d, size, marks = {}, onAyah, mask }: { d: PageData; size: number; marks?: Marks; onAyah?: (s: number, a: number, el: HTMLElement) => void; mask?: VisualMask }) {
   const fontOf = quranFont
   return (
     <div className="flex flex-col">
@@ -220,7 +225,7 @@ export function PageText({ d, size, marks = {}, onAyah }: { d: PageData; size: n
           <p className="mp-text" style={{ fontSize: size, lineHeight: size < 22 ? 2.05 : 2, fontFamily: fontOf(b) }}>
             {b.ayat.map(({ a, t }) => (
               <Ayah key={a} k={key(b.s, a)} state={marks.state?.[key(b.s, a)]} onClick={onAyah && ((el) => onAyah(b.s, a, el))}>
-                {t} <span className="mp-num">{toAr(a)}</span>
+                {mask ? <MaskedWords text={t} s={b.s} a={a} mask={mask} /> : t}{' '}<span className="mp-num">{toAr(a)}</span>
                 {marks.bookmark === key(b.s, a) && <BookmarkDot />}
               </Ayah>
             ))}
@@ -228,6 +233,32 @@ export function PageText({ d, size, marks = {}, onAyah }: { d: PageData; size: n
         </div>
       ))}
     </div>
+  )
+}
+
+function MaskedWords({ text, s, a, mask }: { text: string; s: number; a: number; mask: VisualMask }) {
+  const ws = text.split(/\s+/).filter(Boolean)
+  return (
+    <>
+      {ws.map((word, i) => {
+        const v = mask.visibility(s, a, i)
+        if (v === 'shown') return <span key={i}>{word}{i < ws.length - 1 ? ' ' : ''}</span>
+        return (
+          <span key={i} className="relative inline-block rounded-[0.2em] bg-(--accent-soft)/45" data-word={`${s}:${a}:${i}`}>
+            <span aria-hidden style={{ visibility: 'hidden' }}>{word}</span>
+            <button
+              type="button"
+              onClick={(e) => (e.stopPropagation(), mask.onWord?.(s, a, i))}
+              aria-label={v === 'first' ? 'إظهار الكلمة المخفية' : 'إظهار الحرف الأول من كلمة مخفية'}
+              className="mp-press absolute inset-0 flex items-center justify-center rounded-[0.2em] border-b border-dashed border-(--accent)/60 text-[0.8em] text-(--accent)"
+            >
+              {v === 'first' ? `${firstLetter(word)}…` : ''}
+            </button>
+            {i < ws.length - 1 ? ' ' : ''}
+          </span>
+        )
+      })}
+    </>
   )
 }
 
@@ -260,7 +291,7 @@ export function RunningHead({ d, compact = false }: { d: PageData; compact?: boo
 }
 
 /** A full physical-style page: running head, framed text block, page medallion. */
-export function MushafPage({ d, size, compact = false, marks, onAyah, ribbon = false, className = '' }: { d: PageData; size: number; compact?: boolean; marks?: Marks; onAyah?: (s: number, a: number, el: HTMLElement) => void; ribbon?: boolean; className?: string }) {
+export function MushafPage({ d, size, compact = false, marks, onAyah, mask, ribbon = false, className = '' }: { d: PageData; size: number; compact?: boolean; marks?: Marks; onAyah?: (s: number, a: number, el: HTMLElement) => void; mask?: VisualMask; ribbon?: boolean; className?: string }) {
   const side = d.pg % 2 ? 'right' : 'left'
   const short = d.blocks.reduce((n, b) => n + b.ayat.length, 0) < 9 && d.pg <= 2
   return (
@@ -272,7 +303,7 @@ export function MushafPage({ d, size, compact = false, marks, onAyah, ribbon = f
         {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
           <Rosette key={c} className={`mp-corner ${c}`} />
         ))}
-        <PageText d={d} size={size} marks={marks} onAyah={onAyah} />
+        <PageText d={d} size={size} marks={marks} onAyah={onAyah} mask={mask} />
       </div>
       <div className={`flex justify-center ${compact ? 'mt-2' : 'mt-4'}`}>
         <PageNumber pg={d.pg} compact={compact} />

@@ -6,13 +6,14 @@
 // (studio/mushaf/page → usePageState): the verified KFGQPC Hafs text (Tanzil as
 // a labelled fallback), the project's Madinah page mapping (PAGES), its surah
 // headers and Bismillah placement, with the reader's ayah markers. The page HTML
-// is placed on the page's 3D plane and auto-sized to the page, so the script
-// stays real text at every size. As in the reader, lines reflow: the project has
-// no line-level layout data for the printed 15-line page.
+// is placed on the page's 3D plane and auto-sized to the page, so the complete
+// script stays real and readable at every size. As in the reader, lines reflow:
+// the project has no line-level layout data for the printed 15-line page, so we
+// do not pretend to reproduce unavailable fixed line/word coordinates.
 //
 // Drawing: the iso-glow skill's solid ("Lumen") manner — opaque shaded faces
 // painted back to front, light only on what is live — with an orthographic camera
-// raised to 55° (instead of 30° isometric) so the page text is not squashed.
+// raised to 68° (instead of 30° isometric) so the page text remains legible.
 // Live: the ribbon glows while a task is open today; a bloom rises behind the
 // book when the day is complete. Activating it turns a page, then opens the reader.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
@@ -25,7 +26,7 @@ const WP = 72 // page width from the gutter
 const WC = 76 // cover width
 const TH = (16 * Math.PI) / 180 // each half rests at 16° on the stand
 const ZS = 40 // spine height (raised so the rahl's crossed legs show)
-const E = (55 * Math.PI) / 180 // camera elevation
+const E = (68 * Math.PI) / 180 // camera elevation: near-overhead for recognisable Arabic
 const SE = Math.sin(E)
 const CE = Math.cos(E)
 
@@ -57,11 +58,11 @@ const COL = {
 }
 
 // Text area of each page: past the gutter curl, inside the margins.
-const T1 = WP * 0.22
-const T2 = WP - 6
-const U1 = 7
-const U2 = L - 7
-const PX = 6 // HTML px per model unit on the page plane
+const T1 = WP * 0.13
+const T2 = WP - 4
+const U1 = 5
+const U2 = L - 5
+const PX = 7 // high-resolution HTML plane; SVG scales it onto the physical leaf
 /** Corners of a page's text plane (chord across the gently sloping page, lifted just above the paper). */
 function textPlane(s: number) {
   const n1 = h(T1) + 0.5
@@ -111,15 +112,22 @@ function PageFace({ pg, w, h: H }: { pg: number; w: number; h: number }) {
   }, [page.d]) // eslint-disable-line react-hooks/exhaustive-deps
   const d = page.d
   const opening = pg <= 2
+  const source = d?.hafs ? 'kfgqpc-hafs' : d ? 'tanzil-fallback' : page.status
   return (
-    <div style={{ width: w, height: H, position: 'relative', direction: 'rtl', color: 'var(--mf-ink)' }} data-page={pg}>
+    <div
+      style={{ width: w, height: H, position: 'relative', direction: 'rtl', color: 'var(--mf-ink)' }}
+      data-page={pg}
+      data-page-source={source}
+      aria-label={`صفحة ${toAr(pg)} من المصحف${d ? ` · ${d.hafs ? 'نص حفص الموثّق' : 'نسخة Tanzil الاحتياطية'}` : ''}`}
+    >
       {/* Page frame (ornament only, no text). */}
-      <div style={{ position: 'absolute', inset: 0, border: '3px double var(--mf-frame)', borderRadius: opening ? 22 : 6 }} />
-      <div style={{ position: 'absolute', inset: 7, border: '1px solid var(--mf-frame-soft)', borderRadius: opening ? 16 : 4 }} />
-      <div ref={box} data-fitbox style={{ position: 'absolute', inset: '18px 16px 34px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden', lineHeight: 1.9 }}>
+      <div style={{ position: 'absolute', inset: 0, border: '4px double var(--mf-frame)', borderRadius: opening ? 24 : 6 }} />
+      <div style={{ position: 'absolute', inset: 8, border: '1px solid var(--mf-frame-soft)', borderRadius: opening ? 17 : 4 }} />
+      <div style={{ position: 'absolute', inset: 13, border: '1px solid color-mix(in oklab, var(--mf-frame-soft) 58%, transparent)', borderRadius: opening ? 13 : 3 }} />
+      <div ref={box} data-fitbox style={{ position: 'absolute', inset: '23px 22px 38px', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden', lineHeight: 1.9 }}>
         {d &&
           d.blocks.map((b) => (
-            <div key={b.s}>
+            <div key={b.s} data-surah={b.s} data-source={b.hafs ? 'kfgqpc-hafs' : 'tanzil'}>
               {b.header && (
                 <div style={{ margin: '0 auto 0.45em', padding: '0.12em 0', border: '2px double var(--mf-frame)', borderRadius: 999, textAlign: 'center', fontSize: '0.92em', lineHeight: 1.7, background: 'color-mix(in oklab, var(--mf-paper) 82%, var(--mf-frame))' }}>
                   سورة {surah(b.s).ar}
@@ -136,7 +144,9 @@ function PageFace({ pg, w, h: H }: { pg: number; w: number; h: number }) {
             </div>
           ))}
       </div>
-      <div style={{ position: 'absolute', insetInline: 0, bottom: 9, textAlign: 'center', fontSize: 13, color: 'var(--mf-ink-soft)' }}>{toAr(pg)}</div>
+      {page.status === 'loading' && <div aria-hidden style={{ position: 'absolute', inset: '42% 25%', borderRadius: 999, background: 'var(--mf-frame-soft)', opacity: 0.35 }} />}
+      {page.status === 'error' && <div role="status" style={{ position: 'absolute', inset: '45% 8%', textAlign: 'center', fontSize: 14, color: 'var(--mf-ink-soft)' }}>تعذّر تحميل الصفحة</div>}
+      <div style={{ position: 'absolute', insetInline: 0, bottom: 10, textAlign: 'center', fontSize: 14, color: 'var(--mf-ink-soft)' }}>{toAr(pg)}</div>
     </div>
   )
 }
@@ -208,14 +218,16 @@ export function IsoQuranBook({ progress, state, onOpen, label, className = '' }:
   const ts = span(18, 0, WP)
   const page = (s: number, pg: number) => {
     const plane = textPlane(s)
-    const layers = [0.25, 0.5, 0.75].map((q) => poly(ts.map((t) => at(s, L, t, 4 + (h(t) - 4) * q))))
+    const layers = [0.16, 0.32, 0.48, 0.64, 0.8].map((q) => poly(ts.map((t) => at(s, L, t, 4 + (h(t) - 4) * q))))
+    const gutter = poly([surf(s, 0, 0), surf(s, L, 0), surf(s, L, T1 * 1.15), surf(s, 0, T1 * 1.15)])
     return (
       <g>
         <polygon points={poly([...ts.map((t) => surf(s, 0, t)), ...ts.slice().reverse().map((t) => surf(s, L, t))])} fill={url(`pg${s}`)} />
+        <polygon points={gutter} fill="black" opacity={0.08} />
         <polygon points={poly([surf(s, 0, WP), surf(s, L, WP), at(s, L, WP, 4), at(s, 0, WP, 4)])} fill={COL.edge} />
         <polygon points={poly([...ts.map((t) => at(s, L, t, h(t))), ...ts.slice().reverse().map((t) => at(s, L, t, 4))])} fill={COL.edge} />
         {layers.map((l, i) => <polyline key={i} points={l} fill="none" stroke={COL.edgeLine} strokeWidth={0.6} />)}
-        <foreignObject x={0} y={0} width={plane.w} height={plane.h} transform={plane.transform} aria-hidden>
+        <foreignObject x={0} y={0} width={plane.w} height={plane.h} transform={plane.transform}>
           <PageFace pg={pg} w={plane.w} h={plane.h} />
         </foreignObject>
       </g>
@@ -263,7 +275,7 @@ export function IsoQuranBook({ progress, state, onOpen, label, className = '' }:
   const centre = P([0, L / 2, ZS + 14])
 
   return (
-    <svg viewBox={`${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`} className={`iso-hit overflow-visible ${className}`} role="button" tabIndex={0} aria-label={label} onClick={open} onKeyDown={onKey} data-quran-book data-state={state} data-progress={Math.round(progress * 100)} data-right-page={1} data-left-page={2}>
+    <svg viewBox={`${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`} className={`iso-hit overflow-visible ${className}`} role="button" tabIndex={0} aria-label={label} onClick={open} onKeyDown={onKey} data-quran-book data-state={state} data-progress={Math.round(progress * 100)} data-right-page={1} data-left-page={2} data-opening="al-fatiha-al-baqarah">
       <defs>
         <filter id={`${id}-bloom`} x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="9" /></filter>
         {grad('wood', [0, 0, ZS], [0, L, ZS], [[0, COL.woodHi], [1, COL.woodTop]])}

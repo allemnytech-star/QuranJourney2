@@ -21,7 +21,7 @@ function Diamond({ n, on }: { n: number; on?: boolean }) {
   )
 }
 
-export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, focus?: Focus) => void }) {
+export function MushafIndex({ pg, onOpen, onMemorize }: { pg: number; onOpen: (pg: number, focus?: Focus) => void; onMemorize: (seed: { kind: 'surah'; s: number } | { kind: 'juz'; juz: number } | { kind: 'page'; page: number }) => void }) {
   const desk = useDevice() === 'desktop'
   const [tab, setTab] = useState<Tab>('surah')
   const [asc, setAsc] = useState(true)
@@ -45,10 +45,14 @@ export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, f
           title="المصحف الرقمي"
           sub="١١٤ سورة · ٣٠ جزءًا · ٦٠٤ صفحات — اختر سورة أو جزءًا لتبدأ القراءة من موضعه."
           action={
-            <button type="button" onClick={() => onOpen(pg)} className="press flex h-11 shrink-0 items-center gap-2 rounded-full bg-night px-4 text-[13px] font-semibold text-parchment">
-              <Icon name="book" size={17} />
-              {desk ? `تابع القراءة · ص ${toAr(pg)}` : `ص ${toAr(pg)}`}
-            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => onMemorize({ kind: 'page', page: pg })} className="press flex h-11 shrink-0 items-center gap-2 rounded-full bg-gold px-4 text-[13px] font-semibold text-white" data-index-memorize>
+                <Icon name="sprout" size={17} />ابدأ الحفظ
+              </button>
+              <button type="button" onClick={() => onOpen(pg)} className="press flex h-11 shrink-0 items-center gap-2 rounded-full bg-night px-4 text-[13px] font-semibold text-parchment">
+                <Icon name="book" size={17} />{desk ? `تابع القراءة · ص ${toAr(pg)}` : `ص ${toAr(pg)}`}
+              </button>
+            </div>
           }
         />
 
@@ -78,8 +82,8 @@ export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, f
               const st = surahStart(x.n)
               const here = x.n === s0
               return (
-                <li key={x.n}>
-                  <button type="button" onClick={() => onOpen(st.pg, st.focus)} aria-current={here ? 'true' : undefined} className={card}>
+                <li key={x.n} className="relative">
+                  <button type="button" onClick={() => onOpen(st.pg, st.focus)} aria-current={here ? 'true' : undefined} className={`${card} pe-24`}>
                     <Diamond n={x.n} on={here} />
                     <span className="min-w-0 flex-1 leading-tight">
                       <span className="block text-[21px] font-bold" style={AMIRI}>{x.ar}</span>
@@ -90,6 +94,7 @@ export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, f
                       <span className="mt-1 block text-[11px] text-muted">{x.place === 'makkah' ? 'مكية' : 'مدنية'} · ص {toAr(st.pg)}</span>
                     </span>
                   </button>
+                  <button type="button" onClick={() => onMemorize({ kind: 'surah', s: x.n })} className="press absolute end-3 top-1/2 h-9 -translate-y-1/2 rounded-full bg-gold-soft px-3 text-[11.5px] font-semibold text-night" aria-label={`ابدأ حفظ سورة ${x.ar}`} data-memorize-surah={x.n}>ابدأ الحفظ</button>
                 </li>
               )
             })}
@@ -102,8 +107,8 @@ export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, f
               const [e1, e2] = juzEnd(j)
               const endPg = pageOf(e1, e2)
               return (
-                <li key={j}>
-                  <button type="button" onClick={() => onOpen(st.pg, st.focus)} aria-current={j === curJuz ? 'true' : undefined} className={card}>
+                <li key={j} className="relative">
+                  <button type="button" onClick={() => onOpen(st.pg, st.focus)} aria-current={j === curJuz ? 'true' : undefined} className={`${card} pe-24`}>
                     <Diamond n={j} on={j === curJuz} />
                     <span className="min-w-0 flex-1 leading-tight">
                       <span className="block text-[18px] font-bold" style={AMIRI}>{juzName(j)}</span>
@@ -116,6 +121,7 @@ export function MushafIndex({ pg, onOpen }: { pg: number; onOpen: (pg: number, f
                       <span className="mt-1 block">إلى {toAr(endPg)}</span>
                     </span>
                   </button>
+                  <button type="button" onClick={() => onMemorize({ kind: 'juz', juz: j })} className="press absolute end-3 top-1/2 h-9 -translate-y-1/2 rounded-full bg-gold-soft px-3 text-[11.5px] font-semibold text-night" aria-label={`ابدأ حفظ الجزء ${j}`} data-memorize-juz={j}>ابدأ الحفظ</button>
                 </li>
               )
             })}

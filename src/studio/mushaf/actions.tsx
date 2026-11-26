@@ -5,6 +5,7 @@
 //   copy     → exact ayah text + reference to the clipboard
 //   share    → system share sheet when available, otherwise copy
 //   bookmark → preview-only marker (never written to the app store)
+//   hifz     → opens the host's memorization-scope selector for this exact ayah
 //   mic      → hands the ayah to the recitation screen when a host provides it
 import { useEffect, useRef, useState } from 'react'
 import { I } from '../kit'
@@ -12,11 +13,12 @@ import { RECITERS, ayahAudioUrl, surah, toAr } from '../../lib/quran'
 import { TAFSIR_SOURCE, loadTafsir, tafsirBook, type TafsirText } from '../../lib/tafsir'
 import type { PageData } from './page'
 
-export type ActId = 'play' | 'tafsir' | 'bookmark' | 'mic' | 'copy' | 'share'
+export type ActId = 'play' | 'tafsir' | 'bookmark' | 'hifz' | 'mic' | 'copy' | 'share'
 export const ACTS: { id: ActId; n: string; l: string }[] = [
   { id: 'play', n: 'play', l: 'استماع' },
   { id: 'tafsir', n: 'tafsir', l: 'التفسير' },
   { id: 'bookmark', n: 'bookmark', l: 'علامة' },
+  { id: 'hifz', n: 'sprout', l: 'حفظ' },
   { id: 'mic', n: 'mic', l: 'تسميع' },
   { id: 'copy', n: 'copy', l: 'نسخ' },
   { id: 'share', n: 'share', l: 'مشاركة' },
@@ -25,7 +27,7 @@ export const ACTS: { id: ActId; n: string; l: string }[] = [
 export const ayahText = (d: PageData | null, s: number, a: number) => d?.blocks.find((b) => b.s === s)?.ayat.find((x) => x.a === a)?.t ?? ''
 const ref = (s: number, a: number) => `سورة ${surah(s).ar} · الآية ${toAr(a)}`
 
-export function useAyahActions(onRecite?: (s: number, a: number) => void) {
+export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemorize?: (s: number, a: number) => void) {
   const audio = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState<string | null>(null)
   const [loadingAudio, setLoadingAudio] = useState(false)
@@ -63,6 +65,9 @@ export function useAyahActions(onRecite?: (s: number, a: number) => void) {
     else if (act === 'bookmark') {
       setBookmark(bookmark === k ? null : k)
       setToast(bookmark === k ? 'أُزيلت العلامة' : 'وُضعت علامة · في المعاينة فقط، لا تُحفظ في حسابك')
+    } else if (act === 'hifz') {
+      if (onMemorize) onMemorize(s, a)
+      else setToast('ابدأ الحفظ من شاشة رحلة الحفظ')
     } else if (act === 'mic') {
       if (onRecite) onRecite(s, a)
       else setToast('التسميع متاح من شاشة «تصحيح التلاوة والتجويد»')

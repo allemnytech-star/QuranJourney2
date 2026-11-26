@@ -447,13 +447,36 @@ await test('S5. data saved by the ORIGINAL implementation (checkpoint 59c6301) s
   }
 })
 
+// ---------------------------------------------------------------- homepage Mushaf opening
+{
+  const { server, load } = await fresh()
+  const U = await load('src/lib/usePage.ts')
+  const Q = await load('src/lib/quran.ts')
+  await test('M1. hero Mushaf pages are the exact mapped opening: full Al-Fatiha, then Al-Baqarah 1–5', async () => {
+    assert.deepEqual(U.pageSpans(1), [{ s: 1, from: 1, to: 7 }])
+    assert.deepEqual(U.pageSpans(2), [{ s: 2, from: 1, to: 5 }])
+    assert.equal(Q.hasBismillahHeader(1), false, 'Al-Fatiha ayah 1 already contains its Bismillah')
+    assert.equal(Q.hasBismillahHeader(2), true)
+    const right = JSON.parse(fs.readFileSync(path.join(root, 'public/quran-hafs/1.json'), 'utf8'))
+    const left = JSON.parse(fs.readFileSync(path.join(root, 'public/quran-hafs/2.json'), 'utf8'))
+    assert.equal(right.source.startsWith('KFGQPC Uthmanic Script HAFS'), true)
+    assert.equal(left.source.startsWith('KFGQPC Uthmanic Script HAFS'), true)
+    assert.equal(right.ayat.length, 7)
+    assert.ok(right.ayat.every((t) => t && typeof t === 'string'))
+    assert.ok(left.ayat.slice(0, 5).every((t) => t && typeof t === 'string'))
+  })
+  await server.close()
+}
+
 // ---------------------------------------------------------------- guided learning
 {
   mem.delete('quranJourney.nextPreview.guided.v1')
   const { server, load } = await fresh()
   const S = await load('src/studio/next/learning/sequence.ts')
   const G = await load('src/studio/next/learning/store.ts')
+  const MS = await load('src/studio/next/learning/scope.ts')
   const P = await load('src/studio/next/progress.ts')
+  const Q = await load('src/lib/quran.ts')
   const p = { s: 67, from: 1, to: 5 }
 
   await test('G1. guided sequence: finite, methodology order, cumulative windows ≤ 5, one completion card', () => {
@@ -527,6 +550,54 @@ await test('S5. data saved by the ORIGINAL implementation (checkpoint 59c6301) s
     assert.equal(G2.guided.addSelfReported({ s: 2, from: 1, to: 286 }), true, 'a whole surah may be self-reported')
     assert.equal(G2.guided.addSelfReported({ s: 2, from: 1, to: 287 }), false)
     await f.server.close()
+  })
+
+  await test('G6. a whole long Surah is preserved and chunked, never truncated to 20 ayat', () => {
+    G.guided.reset()
+    const kahf = MS.scopeOfSurah(18, 'mushaf')
+    assert.deepEqual([kahf.g0, kahf.g1, kahf.g1 - kahf.g0 + 1], [Q.gIndex(18, 1), Q.gIndex(18, 110), 110])
+    const chunks = MS.scopeChunks(kahf)
+    assert.ok(chunks.length > 5)
+    assert.equal(chunks[0].from, 1)
+    assert.equal(chunks.at(-1).to, 110)
+    assert.ok(chunks.every((c) => c.to - c.from + 1 <= 20 && c.s === 18))
+    assert.equal(G.guided.startScope(kahf, 'daily', 10, 'mushaf', 'guided'), true)
+    const s = G.getGuided().session
+    assert.deepEqual([s.scope.g0, s.scope.g1, s.passage.from, s.passage.to, s.presentation], [kahf.g0, kahf.g1, 1, 20, 'mushaf'])
+  })
+
+  await test('G7. page ranges may cross Surah boundaries and keep exact canonical endpoints', () => {
+    const scope = MS.scopeOfPages(1, 2, 'mushaf')
+    assert.deepEqual(MS.scopeSummary(scope).from, { s: 1, a: 1 })
+    assert.deepEqual(MS.scopeSummary(scope).to, { s: 2, a: 5 })
+    const chunks = MS.scopeChunks(scope)
+    assert.deepEqual(chunks.map((c) => [c.s, c.from, c.to]), [[1, 1, 7], [2, 1, 5]])
+  })
+
+  await test('G8. switching presentation changes no outcomes or memorization; chunk progress resumes', () => {
+    G.guided.reset()
+    const scope = MS.scopeOfSurah(18)
+    G.guided.startScope(scope, 'daily', null, 'focus', 'guided')
+    G.guided.record('recall:18:1-1', { status: 'done', recall: 'independent' })
+    const memBefore = JSON.stringify(P.getPreview().memorized)
+    G.guided.setPresentation('mushaf')
+    assert.equal(G.getGuided().session.presentation, 'mushaf')
+    assert.equal(G.getGuided().session.done['recall:18:1-1'].recall, 'independent')
+    assert.equal(JSON.stringify(P.getPreview().memorized), memBefore)
+    G.guided.setSegment(1, true)
+    assert.equal(G.getGuided().session.segmentIndex, 1)
+    assert.ok(G.getGuided().session.segmentResults[MS.scopeChunks(scope)[0].id])
+    G.guided.setSegment(0)
+    assert.equal(G.getGuided().session.done['recall:18:1-1'].recall, 'independent')
+  })
+
+  await test('G9. starting an explicit new scope archives the unfinished session instead of silently discarding it', () => {
+    G.guided.reset()
+    G.guided.startScope(MS.scopeOfSurah(18), 'daily')
+    const old = G.getGuided().session.id
+    G.guided.startScope(MS.scopeOfJuz(30), 'daily')
+    assert.equal(G.getGuided().saved[0].id, old)
+    assert.equal(G.getGuided().session.scope.kind, 'juz')
   })
 }
 
