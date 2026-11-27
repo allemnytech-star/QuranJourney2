@@ -1,3 +1,5 @@
+import { TasmeeLink } from '../TasmeeLink'
+import { scopeOfAyat, scopeOfPages } from '../learning/scope'
 // المصحف الرقمي — the approved Phase 1 Mushaf design, hosted as a first-class
 // screen of the Next-generation preview. It reuses the Phase 1 reader
 // components as they are (src/studio/mushaf); only the host wiring lives here.
@@ -15,7 +17,7 @@ import { actions, rangeAr, today, usePreview } from '../progress'
 import { Confirm } from '../previewUi'
 import { StorageNotice } from '../storageSafety'
 import { surah } from '../../../lib/quran'
-import { setReciteTarget } from './recite'
+import { setReciteTarget } from '../reciteTarget'
 import { MushafIndex } from './mushafIndex'
 import { MemorizationSelector } from '../learning/selector'
 import type { ScopeSeed } from '../learning/scope'
@@ -40,7 +42,8 @@ export function useOpenInMushaf() {
 export function DigitalMushaf() {
   const device = useDevice()
   const { s, set } = useContext(MushafCtx)
-  const { go: goScreen } = useProto()
+  const { go: goScreen, production } = useProto()
+  const session = useSession()
   const [memorize, setMemorize] = useState<ScopeSeed | null>(null)
   const setTone = (tone: Tone) => set({ tone })
   const back = () => set({ stage: 'index', view: 'reading', nav: navTo(s.nav.pg) })
@@ -48,7 +51,21 @@ export function DigitalMushaf() {
   // surah / juz moves carry their exact starting ayah, freshly stamped.
   const go: Go = (pg, focus) => set({ nav: navTo(pg, focus) })
   const open = (pg: number, focus?: Focus) => set({ nav: navTo(pg, focus), stage: 'reader', view: 'reading' })
-  const recite = (rs: number, ra: number) => (setReciteTarget({ s: rs, a: ra }), goScreen('recite'))
+  const recite = (rs: number, ra: number) => {
+    if (production) {
+      const { g0 } = scopeOfAyat(rs, ra, ra)
+      goScreen('recite', g0 + '-' + g0)
+    } else {
+      setReciteTarget({ s: rs, a: ra })
+      goScreen('recite')
+    }
+  }
+  const bookmarks = production ? { marks: session.s.marks, toggle: session.toggleMark } : undefined
+  const pageScope = scopeOfPages(s.nav.pg, s.nav.pg)
+  const pageActions = <>
+    <button type="button" onClick={() => setMemorize({ kind: 'page', page: s.nav.pg })} className="mp-press flex min-h-11 items-center gap-2 rounded-full bg-(--accent) px-3 text-[12.5px] font-semibold text-white shadow" data-memorize-page><Icon name="sprout" size={15} />ابدأ الحفظ</button>
+    <TasmeeLink scope={pageScope} className="bg-card text-night shadow">سمّع الصفحة</TasmeeLink>
+  </>
   const memorizeAyah = (ms: number, ma: number) => setMemorize({ kind: 'ayah', s: ms, a: ma })
 
   const ret = <><ReturnToJourney /><ReadingTaskBar /><RevisionTaskBar />{memorize && <MemorizationSelector seed={memorize} onClose={() => setMemorize(null)} />}</>
@@ -59,8 +76,8 @@ export function DigitalMushaf() {
     return (
       <Chrome dock={false}>
         <div className="mp relative h-full" data-tone={s.tone}>
-          <DesktopReader nav={s.nav} onGo={go} tone={s.tone} setTone={setTone} auto onBack={back} onRecite={recite} onMemorize={memorizeAyah} />
-          <button type="button" onClick={() => setMemorize({ kind: 'page', page: s.nav.pg })} className="mp-press absolute end-5 top-[76px] z-30 flex h-10 items-center gap-2 rounded-full bg-(--accent) px-4 text-[12.5px] font-semibold text-white shadow" data-memorize-page><Icon name="sprout" size={15} />ابدأ الحفظ</button>
+          <DesktopReader nav={s.nav} onGo={go} tone={s.tone} setTone={setTone} auto onBack={back} onRecite={recite} onMemorize={memorizeAyah} bookmarks={bookmarks} />
+          <div className="absolute end-5 top-[76px] z-30 flex gap-2">{pageActions}</div>
           {ret}
         </div>
       </Chrome>
@@ -69,8 +86,8 @@ export function DigitalMushaf() {
   return (
     <div className="mp absolute inset-0" data-tone={s.tone}>
       <div className="pointer-events-none absolute inset-x-0 top-12 z-[70] [&>*]:pointer-events-auto"><StorageNotice /></div>
-      <MobileReader bare auto label="" pg={s.nav.pg} focus={s.nav.focus} view={s.view} tone={s.tone} setTone={setTone} onView={(view) => set({ view })} onGo={go} onBack={back} onRecite={recite} onMemorize={memorizeAyah} />
-      {s.view === 'reading' && <button type="button" onClick={() => setMemorize({ kind: 'page', page: s.nav.pg })} className="mp-press absolute end-4 top-[112px] z-30 flex h-10 items-center gap-2 rounded-full bg-(--accent) px-4 text-[12.5px] font-semibold text-white shadow" data-memorize-page><Icon name="sprout" size={15} />ابدأ الحفظ</button>}
+      <MobileReader bare auto label="" pg={s.nav.pg} focus={s.nav.focus} view={s.view} tone={s.tone} setTone={setTone} onView={(view) => set({ view })} onGo={go} onBack={back} onRecite={recite} onMemorize={memorizeAyah} bookmarks={bookmarks} />
+      {s.view === 'reading' && <div className="absolute end-4 top-[112px] z-30 flex gap-2">{pageActions}</div>}
       {ret}
     </div>
   )

@@ -1,3 +1,4 @@
+import { nextKey } from './productionStorage'
 // Starting an activity: each activity opens its own destination, and the task or
 // scope being worked on is remembered so that destination can offer the explicit
 // completion. Opening a task never completes it.
@@ -12,7 +13,7 @@ import { useOpenInMushaf } from './screens/mushaf'
 import { chunksOf, derived, getPreview, today, usePreview, type Activity, type Task, type Unit } from './progress'
 import { quarantine, readRaw, safeWrite } from './storageSafety'
 
-export const ACTIVE_KEY = 'quranJourney.nextPreview.activeTask.v1'
+export const ACTIVE_KEY = nextKey('.activeTask.v1')
 
 /**
  * `plan`: a scheduled plan task. `scope`: a free range opened elsewhere (e.g. a Juz from the map).

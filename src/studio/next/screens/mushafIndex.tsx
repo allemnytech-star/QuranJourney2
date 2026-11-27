@@ -1,3 +1,5 @@
+import { TasmeeLink } from '../TasmeeLink'
+import { scopeOfPages } from '../learning/scope'
 // فهرس المصحف — surah / juz index that opens the Digital Mushaf (design preview).
 // All figures come from the project's metadata (surahs.json, Tanzil quran-meta):
 // ayah counts, Makki/Madani, starting pages and juz start positions.
@@ -45,7 +47,7 @@ export function MushafIndex({ pg, onOpen, onMemorize }: { pg: number; onOpen: (p
           title="المصحف الرقمي"
           sub="١١٤ سورة · ٣٠ جزءًا · ٦٠٤ صفحات — اختر سورة أو جزءًا لتبدأ القراءة من موضعه."
           action={
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button type="button" onClick={() => onMemorize({ kind: 'page', page: pg })} className="press flex h-11 shrink-0 items-center gap-2 rounded-full bg-gold px-4 text-[13px] font-semibold text-white" data-index-memorize>
                 <Icon name="sprout" size={17} />ابدأ الحفظ
               </button>
@@ -57,6 +59,7 @@ export function MushafIndex({ pg, onOpen, onMemorize }: { pg: number; onOpen: (p
         />
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
+          <TasmeeLink scope={scopeOfPages(pg, pg)}>سمّع الصفحة</TasmeeLink>
           <div role="tablist" className="flex gap-1 border-b border-line">
             {([['surah', 'سورة'], ['juz', 'جزء']] as const).map(([k, l]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 pb-2.5 text-[15px] ${tab === k ? 'border-gold font-semibold text-night' : 'border-transparent text-muted hover:text-night'}`}>{l}</button>

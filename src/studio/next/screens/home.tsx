@@ -1,3 +1,5 @@
+import { migration } from '../productionStorage'
+import { TasmeeLink } from '../TasmeeLink'
 // رحلتك اليوم — unified home dashboard (design preview).
 import { useContext, useEffect, useState, type ReactNode } from 'react'
 import { MushafCtx } from './mushaf'
@@ -42,7 +44,7 @@ function Ring({ v, color, size = 64, children }: { v: number; color: string; siz
 
 export function HomeDashboard() {
   const device = useDevice()
-  const { go } = useProto()
+  const { go, production } = useProto()
   const mushaf = useContext(MushafCtx)
   const st = usePreview()
   const pd = derived(st)
@@ -71,7 +73,7 @@ export function HomeDashboard() {
   const startGuided = useStartGuided()
   const [startMsg, setStartMsg] = useState<string | null>(null)
   const open = g.session && !g.session.finishedAt ? g.session : null
-  const daily = () => (open ? go('guided') : setStartMsg(startGuided('daily')))
+  const daily = () => (open ? go(open.experience === 'free' ? 'ayah' : 'guided') : setStartMsg(startGuided('daily')))
   const bookState = qTotal === 0 ? 'rest' : qDone === qTotal ? 'done' : 'open'
   const bookLabel = `مصحف مفتوح على حامل، على الصفحتين الأولى (سورة الفاتحة) والثانية (أول سورة البقرة). ${qTotal ? `أُنجز ${toAr(qDone)} من ${toAr(qTotal)} من مهام اليوم.` : 'لا مهام اليوم.'} اضغط لمتابعة القراءة من الصفحة ${toAr(continuePg)}.`
 
@@ -85,7 +87,7 @@ export function HomeDashboard() {
     <header className={`hero-fade relative text-white ${desk ? 'rounded-[32px] px-10 pb-28 pt-8' : 'px-5 pb-24 pt-14'}`}>
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] backdrop-blur"><Icon name="calendar" size={14} />{hijri}</span>
-        <span className="ms-auto rounded-full bg-white/90 text-night"><DataBar compact /></span>
+        <span className="ms-auto"><TasmeeLink className="bg-white text-night" /><DataBar compact /></span>
       </div>
       {/* Copy and the live Mushaf side by side (Mushaf on the right, aligned with the greeting and title). */}
       <div className={`mt-4 flex items-center ${desk ? 'gap-6' : 'gap-3'}`} dir="ltr">
@@ -244,11 +246,18 @@ export function HomeDashboard() {
     </Card>
   )
 
+  const recovery = production && (migration === null || migration.legacy || migration.retainedInPreview.length > 0) && (
+    <button type="button" onClick={() => go('settings')} className="press mt-4 min-h-11 rounded-full bg-card px-4 text-[13px] font-semibold ring-1 ring-line">
+      الوصول إلى البيانات السابقة
+    </button>
+  )
+
   if (desk)
     return (
       <Chrome>
         <div className="mx-auto max-w-[1000px] px-8 py-8">
           {hero}
+          {recovery}
           {trio}
           <div className="mt-8 grid grid-cols-3 gap-5">
             <div className="col-span-2 space-y-5">{learnCard}{quranCard}{reflectCard}</div>
@@ -260,6 +269,7 @@ export function HomeDashboard() {
   return (
     <Chrome bare>
       {hero}
+      {recovery && <div className="px-5">{recovery}</div>}
       {trio}
       <div className="space-y-4 px-5 pt-5">{learnCard}{quranCard}{azkarCard}{reflectCard}{recent}</div>
     </Chrome>

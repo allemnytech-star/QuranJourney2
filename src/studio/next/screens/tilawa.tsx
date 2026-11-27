@@ -3,12 +3,15 @@
 // and every other state is documented, never simulated. No recognition, mistake,
 // progress or score is ever produced here. Manual recitation stays available.
 import { useState } from 'react'
-import { Icon, toAr, useDevice, useProto } from '../core'
-import { surah } from '../../../lib/quran'
+import { Chrome, Head, Icon, toAr, useDevice, useProto } from '../core'
+import { gIndex, surah } from '../../../lib/quran'
 import { AI_DISCLAIMER, MISTAKE_AR, MODEL_STATE_AR, type TilawaState } from '../learning/contracts'
-import { guided } from '../learning/store'
+import { guided, useGuided } from '../learning/store'
 import { MistakeHistory } from './retention'
 import { Illustration } from '../illustrations'
+import { readTasmeeScope, type TasmeeRange } from '../TasmeeLink'
+import { scopeSummary, type ScopeSeed } from '../learning/scope'
+import { MemorizationSelector } from '../learning/selector'
 
 type P = { s: number; from: number; to: number }
 
@@ -101,5 +104,79 @@ export function TilawaSection({ p }: { p: P }) {
       </section>
       <MistakeHistory />
     </div>
+  )
+}
+
+
+export function TasmeeEntry() {
+  const { nav, go } = useProto()
+  const state = useGuided()
+  const scope = readTasmeeScope(nav.param)
+  const [picker, setPicker] = useState<ScopeSeed | null>(null)
+  const mode = nav.param === 'weak' || nav.param === 'free' ? nav.param : null
+  const [error, setError] = useState('')
+  const [replace, setReplace] = useState(false)
+  const active = state.session && !state.session.finishedAt ? state.session : null
+  const passage = scope && scopeSummary(scope)
+  const base = passage?.from ?? { s: 1, a: 1 }
+  const targets: { label: string; seed: ScopeSeed }[] = [
+    { label: 'تسميع سورة', seed: { kind: 'surah', s: base.s } },
+    { label: 'تسميع صفحة', seed: { kind: 'page', page: scope?.fromPage ?? 1 } },
+    { label: 'تسميع مجموعة آيات', seed: { kind: 'ayahs', s: base.s, from: base.a, to: passage?.to.s === base.s ? passage.to.a : base.a } },
+  ]
+  const choose = ({ g0, g1 }: TasmeeRange) => {
+    setReplace(false)
+    go('recite', g0 + '-' + g1)
+  }
+  const manual = () => {
+    if (!scope || mode || (active && (!replace || state.saved.length >= 8))) return
+    if (!guided.startScope(scope, 'quick-review', null)) {
+      setError('تعذّر بدء التسميع. تحقّق من النطاق المحدّد.')
+      return
+    }
+    go('guided')
+  }
+  const weak = [...new Map(state.weak.filter((r) => !r.reviewed).map((r) => [r.s + ':' + r.a, r])).values()]
+  const option = 'press min-h-11 rounded-full bg-card px-4 text-[13px] font-semibold ring-1 ring-line'
+  return (
+    <Chrome>
+      <div className="mx-auto max-w-[900px] space-y-4 px-5 py-6" data-tasmee>
+        <Head title="سمّع" sub="اختر ما تريد تسميعه من حفظك ثم أظهر النص للتحقّق." action={<Illustration id="recite" size={64} />} />
+        <div className="flex flex-wrap gap-2" aria-label="نطاق التسميع">
+          {targets.map(({ label, seed }) => <button key={label} type="button" className={option} onClick={() => setPicker(seed)}>{label}</button>)}
+          <button type="button" className={option} aria-pressed={mode === 'weak'} onClick={() => go('recite', 'weak')}>تسميع مواضع الضعف</button>
+          <button type="button" className={option} aria-pressed={mode === 'free'} onClick={() => go('recite', 'free')}>سمّع من أي موضع</button>
+        </div>
+        {mode === 'weak' && <section className="rounded-[22px] bg-card p-4 ring-1 ring-line">
+          <p className="text-sm font-semibold">مواضع الضعف المسجّلة</p>
+          {weak.length === 0 ? <p className="mt-1 text-sm text-muted">لا توجد مواضع تحتاج إلى مراجعة في سجلك حاليًا.</p> :
+            <div className="mt-2 flex flex-wrap gap-2">{weak.map((r) => {
+              const g = gIndex(r.s, r.a)
+              return <button key={g} type="button" className={option} onClick={() => choose({ g0: g, g1: g })}>{surah(r.s).ar} · {toAr(r.a)}</button>
+            })}</div>}
+        </section>}
+        {passage && !mode && <section className="space-y-3 rounded-[22px] bg-card p-5 ring-1 ring-line" data-tasmee-scope data-g0={passage.g0} data-g1={passage.g1}>
+          <h2 className="text-base font-bold">التسميع اليدوي</h2>
+          <p className="text-sm">{passage.range} · {toAr(passage.ayat)} آية · ص {toAr(passage.fromPage)}–{toAr(passage.toPage)}</p>
+          <p className="text-sm text-muted">سمّع بصوتك ثم اكشف الآيات للتحقّق بنفسك. النص مخفي في البداية والميكروفون مغلق.</p>
+          {active && <div className="space-y-2 rounded-[16px] bg-gold-soft p-3 text-sm">
+            <p>لديك جلسة غير مكتملة: {active.scope.label}</p>
+            {state.saved.length >= 8
+              ? <p>أكمل إحدى جلساتك قبل بدء تمرين جديد من هنا.</p>
+              : <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />احفظ الجلسة الحالية في الأرشيف وابدأ التسميع</label>}
+            <button type="button" className={option} onClick={() => go(active.experience === 'guided' ? 'guided' : 'ayah')}>استأنف الجلسة الحالية</button>
+          </div>}
+          <button type="button" onClick={manual} disabled={!!active && (!replace || state.saved.length >= 8)} className="press flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-night px-4 font-semibold text-parchment disabled:opacity-40" data-manual-recite>
+            <Icon name="eyeOff" size={17} />سمّع يدويًا مع إخفاء النص
+          </button>
+          {error && <p role="alert" className="text-sm text-clay">{error}</p>}
+        </section>}
+        <section className="rounded-[22px] bg-night/[.04] p-4 text-sm ring-1 ring-line" data-tilawa-status>
+          <h2 className="font-semibold">التسميع الذكي غير متاح حاليًا</h2>
+          <p className="mt-1 text-muted">{mode === 'free' ? 'يتطلّب التعرّف التلقائي على موضع التلاوة محرك التسميع. اختر سورة أو صفحة أو آيات للتسميع اليدوي.' : 'التعرّف على التلاوة وتصحيحها يحتاجان إلى محرك التسميع. يمكنك استخدام التسميع اليدوي الآن.'}</p>
+        </section>
+      </div>
+      {picker && <MemorizationSelector seed={picker} onClose={() => setPicker(null)} onSelect={choose} />}
+    </Chrome>
   )
 }

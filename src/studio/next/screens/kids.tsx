@@ -348,7 +348,7 @@ function SurahPlayer({ n, won, onWin, footer }: { n: number; won: boolean; onWin
         <p className="text-[14px] font-semibold">سورة {surah(n).ar} · {toAr(total)} {total >= 3 && total <= 10 ? 'آيات' : 'آية'}</p>
         <span className="rounded-full bg-card px-2.5 py-1 text-[11.5px] font-semibold" data-kids-progress>كرّرت {toAr(repeated)} من {toAr(total)}</span>
       </div>
-      <p className="mt-2 flex items-start gap-1.5 rounded-[14px] bg-card/70 p-2.5 text-[12px] text-muted" data-audio-unavailable><Icon name="info" size={14} className="mt-0.5 shrink-0" />الاستماع غير متوفّر حاليًا في هذه المعاينة. اقرأ الآيات مع وليّ أمرك أو معلّمك، وكرّر كل آية بعده.</p>
+      <p className="mt-2 flex items-start gap-1.5 rounded-[14px] bg-card/70 p-2.5 text-[12px] text-muted" data-audio-unavailable><Icon name="info" size={14} className="mt-0.5 shrink-0" />الاستماع غير متوفّر حاليًا. اقرأ الآيات مع وليّ أمرك أو معلّمك، وكرّر كل آية بعده.</p>
       <div className="mf-paper mt-3 rounded-[20px] p-3">
         {text === false ? (
           <p role="alert" className="text-[13px]">تعذّر تحميل نص السورة. <button type="button" onClick={() => setAttempt((x) => x + 1)} className="font-semibold underline">أعد المحاولة</button></p>

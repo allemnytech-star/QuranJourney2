@@ -7,22 +7,15 @@
 // offline no result exists, and the result layout is shown only as an empty,
 // labelled template. Recordings stay in this page's memory.
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { Chrome, Head, Icon, MoreTabs, toAr, useDevice } from '../core'
-import { DEMO_PASSAGE, useSession } from '../session'
+import { Chrome, Head, Icon, MoreTabs, toAr, useDevice, useProto } from '../core'
+import { useSession } from '../session'
 import { useEngine } from '../../../lib/useEngine'
 import { analyze, type Analysis } from '../../../lib/muaalem'
 import { blobToMono16k, encodeWav, startRecording, type Recorder } from '../../../lib/audio'
 import { RECITERS, SURAHS, ayahAudioUrl, loadMushaf, surah } from '../../../lib/quran'
-import { TilawaSection } from './tilawa'
+import { TasmeeEntry, TilawaSection } from './tilawa'
+import { setPassage, usePassage, type Passage } from '../reciteTarget'
 
-// ---- Shared passage (both device frames, and the Mushaf's "تسميع" action, use it)
-type Passage = { s: number; from: number; to: number }
-let passage: Passage = { ...DEMO_PASSAGE }
-const subs = new Set<() => void>()
-const setPassage = (p: Passage) => ((passage = p), subs.forEach((f) => f()))
-const usePassage = () => useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => passage)
-/** Called from the Mushaf ayah menu: practise exactly that ayah. */
-export const setReciteTarget = ({ s, a }: { s: number; a: number }) => setPassage({ s, from: a, to: a })
 const MAX_AYAT = 10
 /**
  * Recording limit when the engine cannot tell us its own: the same default as
@@ -42,6 +35,10 @@ const useHistory = () => useSyncExternalStore((f) => (hsubs.add(f), () => hsubs.
 const ref = (p: Passage) => `سورة ${surah(p.s).ar} · ${p.from === p.to ? `الآية ${toAr(p.from)}` : `الآيات ${toAr(p.from)}–${toAr(p.to)}`}`
 
 export function ReciteJourney() {
+  return useProto().production ? <TasmeeEntry /> : <RecitePreview />
+}
+
+function RecitePreview() {
   const desk = useDevice() === 'desktop'
   const p = usePassage()
   const [lab, setLab] = useState(false)

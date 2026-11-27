@@ -1,8 +1,9 @@
 // Desktop Mushaf reader mock (design preview only; local UI state, no app logic).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { I } from '../kit'
+import { PAGES } from '../../lib/quran'
 import { MushafPage, PageError, PageNumber, PageSkeleton, PageText, SurahBanner, TOTAL_PAGES, bismillahFor, clampPage, juzName, parsePage, quranFont, surahName, toAr, useFocus, usePage, usePageState, type Go, type Marks, type MushafNav, type PageData } from './page'
-import { ACTS, ActionToast, TafsirPanel, ayahText, useAyahActions, type ActId } from './actions'
+import { ACTS, ActionToast, TafsirPanel, ayahText, useAyahActions, type ActId, type AyahBookmarks } from './actions'
 import { NavPanel, type NavTab } from './nav'
 
 export type Mode = 'mushaf' | 'ayah' | 'flow'
@@ -120,7 +121,7 @@ function Toolbar({ d, mode, setMode, bookmarked, setBookmarked, settings, setSet
       <div className="flex min-w-[260px] items-center justify-end gap-1">
         <IconBtn n="search" label="ابحث عن سورة" on={nav === 'surah'} onClick={() => onNav('surah')} />
         <IconBtn n={listening ? 'pause' : 'volume'} label={listening ? 'إيقاف التلاوة' : 'استمع لأول آية في الصفحة'} on={listening} onClick={onListen} />
-        <IconBtn n="bookmark" label="علامة على الصفحة (في المعاينة فقط)" on={bookmarked} onClick={() => setBookmarked(!bookmarked)} />
+        <IconBtn n="bookmark" label="علامة عند بداية الصفحة" on={bookmarked} onClick={() => setBookmarked(!bookmarked)} />
         <IconBtn n="type" label="إعدادات القراءة" on={settings} onClick={() => setSettings(!settings)} />
       </div>
     </header>
@@ -190,20 +191,23 @@ function Toggle({ l, on: init = false }: { l: string; on?: boolean }) {
  * every navigation out, so several frames can share one position. Page turns and
  * page input pass no focus, which clears any previous ayah focus.
  */
-export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onRecite, onMemorize }: { nav: MushafNav; onGo: Go; tone: Tone; setTone: (t: Tone) => void; auto?: boolean; onBack?: () => void; onRecite?: (s: number, a: number) => void; onMemorize?: (s: number, a: number) => void }) {
+export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onRecite, onMemorize, bookmarks }: { nav: MushafNav; onGo: Go; tone: Tone; setTone: (t: Tone) => void; auto?: boolean; onBack?: () => void; onRecite?: (s: number, a: number) => void; onMemorize?: (s: number, a: number) => void; bookmarks?: AyahBookmarks }) {
   const pg = pos.pg
   const page = usePageState(pg)
   const d = page.d
   const next = usePage(Math.min(TOTAL_PAGES, pg + 1))
   const [mode, setMode] = useState<Mode>('mushaf')
   const [size, setSize] = useState(1)
-  const [bookmarked, setBookmarked] = useState(false)
+  const [previewBookmark, setPreviewBookmark] = useState(false)
+  const [pageStartSurah, pageStartAyah] = PAGES[pos.pg - 1]
+  const bookmarked = bookmarks ? !!bookmarks.marks[[pageStartSurah, pageStartAyah].join(':')] : previewBookmark
+  const setBookmarked = bookmarks ? () => bookmarks.toggle(pageStartAyah, pageStartSurah) : setPreviewBookmark
   const [settings, setSettings] = useState(false)
   const [nav, setNav] = useState<NavTab | null>(null)
   const [sel, setSel] = useState<{ s: number; a: number; x: number; y: number } | null>(null)
   const area = useRef<HTMLDivElement>(null)
   const flash = useFocus(area, d, pos.focus)
-  const acts = useAyahActions(onRecite, onMemorize)
+  const acts = useAyahActions(onRecite, onMemorize, bookmarks)
   const first = pg <= 1
   const last = pg >= TOTAL_PAGES
   const go: Go = (n, f) => (onGo(clampPage(n), f), setSel(null), setNav(null))
@@ -222,7 +226,7 @@ export function DesktopReader({ nav: pos, onGo, tone, setTone, auto, onBack, onR
   if (flash) state[flash] = 'selected'
   if (acts.playing) state[acts.playing] = 'playing'
   if (sel) state[`${sel.s}:${sel.a}`] = 'selected'
-  const marks = { state, bookmark: acts.bookmark ?? undefined }
+  const marks = { state, bookmark: acts.bookmark ?? undefined, bookmarks: acts.bookmarks }
   const firstAyah = d?.blocks[0]?.ayat[0] && { s: d.blocks[0].s, a: d.blocks[0].ayat[0].a }
   const listen = () => firstAyah && acts.run('play', acts.playing ? Number(acts.playing.split(':')[0]) : firstAyah.s, acts.playing ? Number(acts.playing.split(':')[1]) : firstAyah.a, '')
   const body = page.status === 'error' ? <PageError pg={pg} onRetry={page.retry} /> : d ? null : <PageSkeleton />

@@ -1,3 +1,4 @@
+import { useProto } from './core'
 // Small shared UI for the preview progress model: data indicator + reset,
 // confirmation dialog and transient toast. Same Sakina tokens as the screens.
 import { useEffect, useState, type ReactNode } from 'react'
@@ -7,6 +8,10 @@ import { actions, isDemoData, storageStatus, usePreview } from './progress'
 
 /** Always visible where preview progress is shown: says what the data is, and offers reset. */
 export function DataBar({ compact = false }: { compact?: boolean }) {
+  return useProto().production ? null : <PreviewDataBar compact={compact} />
+}
+
+function PreviewDataBar({ compact }: { compact: boolean }) {
   const st = usePreview()
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState<'demo' | 'empty' | null>(null)

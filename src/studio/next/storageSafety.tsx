@@ -1,3 +1,5 @@
+import { APPEARANCE_KEY, MUSHAF_KEY, nextKey } from './productionStorage'
+import { isProduction } from '../../lib/applicationMode'
 // Storage safety for the Next Preview (preview-only, this browser/device only).
 //
 //  - Unreadable saved data is never discarded: the raw value is copied to a
@@ -19,11 +21,12 @@ export const getStorageHealth = () => health
 
 /** Arabic name of each preview store, for messages. */
 export const STORE_AR: Record<string, string> = {
-  'quranJourney.nextPreview.v1': 'الخطط والتقدّم والإنجازات',
-  'quranJourney.nextPreview.azkar.v1': 'تقدّم الأذكار والمفضّلة',
-  'quranJourney.nextPreview.session.v1': 'جلسة الحفظ والتأمّلات',
-  'quranJourney.nextPreview.activeTask.v1': 'المهمة المفتوحة',
-  'quranJourney.nextPreview.guided.v1': 'الجلسة الموجّهة والتفضيلات ومواضع المراجعة',
+  ...(isProduction ? { [APPEARANCE_KEY]: 'المظهر', [MUSHAF_KEY]: 'موضع القراءة' } : {}),
+  [nextKey('.v1')]: 'الخطط والتقدّم والإنجازات',
+  [nextKey('.azkar.v1')]: 'تقدّم الأذكار والمفضّلة',
+  [nextKey('.session.v1')]: 'جلسة الحفظ والتأمّلات',
+  [nextKey('.activeTask.v1')]: 'المهمة المفتوحة',
+  [nextKey('.guided.v1')]: 'الجلسة الموجّهة والتفضيلات ومواضع المراجعة',
 }
 
 const isQuota = (e: unknown) => {
@@ -45,6 +48,8 @@ export function readRaw(key: string): { raw: string | null; blocked: boolean } {
 /** Writes a key; returns false (and records why) when the browser refuses. */
 export function safeWrite(key: string, value: string): boolean {
   try {
+    // Recovery must succeed before a damaged value can be replaced.
+    if (health.recovered.some((entry) => entry.key === key && !entry.backup)) return false
     localStorage.setItem(key, value)
     if (health.failed[key]) {
       const failed = { ...health.failed }

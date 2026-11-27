@@ -27,7 +27,9 @@ export const ACTS: { id: ActId; n: string; l: string }[] = [
 export const ayahText = (d: PageData | null, s: number, a: number) => d?.blocks.find((b) => b.s === s)?.ayat.find((x) => x.a === a)?.t ?? ''
 const ref = (s: number, a: number) => `سورة ${surah(s).ar} · الآية ${toAr(a)}`
 
-export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemorize?: (s: number, a: number) => void) {
+export type AyahBookmarks = { marks: Record<string, true>; toggle: (a: number, s?: number) => void }
+
+export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemorize?: (s: number, a: number) => void, bookmarks?: AyahBookmarks) {
   const audio = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState<string | null>(null)
   const [loadingAudio, setLoadingAudio] = useState(false)
@@ -47,6 +49,7 @@ export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemo
       () => setToast('تعذّر النسخ في هذا المتصفح'),
     ) ?? setToast('تعذّر النسخ في هذا المتصفح')
 
+  const isMarked = (k: string) => bookmarks ? !!bookmarks.marks[k] : bookmark === k
   const run = (act: ActId, s: number, a: number, text: string) => {
     const k = `${s}:${a}`
     const full = `${text} ﴿${ref(s, a)}﴾`
@@ -63,8 +66,9 @@ export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemo
       )
     } else if (act === 'tafsir') setTafsir({ s, a })
     else if (act === 'bookmark') {
-      setBookmark(bookmark === k ? null : k)
-      setToast(bookmark === k ? 'أُزيلت العلامة' : 'وُضعت علامة · في المعاينة فقط، لا تُحفظ في حسابك')
+      if (bookmarks) bookmarks.toggle(a, s)
+      else setBookmark(isMarked(k) ? null : k)
+      setToast(isMarked(k) ? 'أُزيلت العلامة' : 'وُضعت علامة')
     } else if (act === 'hifz') {
       if (onMemorize) onMemorize(s, a)
       else setToast('ابدأ الحفظ من شاشة رحلة الحفظ')
@@ -77,8 +81,8 @@ export function useAyahActions(onRecite?: (s: number, a: number) => void, onMemo
       else void copy(full)
     }
   }
-  const label = (act: ActId, s: number, a: number) => (act === 'play' && playing === `${s}:${a}` ? 'إيقاف' : act === 'play' && loadingAudio ? 'يحمّل…' : act === 'bookmark' && bookmark === `${s}:${a}` ? 'إزالة' : ACTS.find((x) => x.id === act)!.l)
-  return { run, label, playing, bookmark, tafsir, closeTafsir: () => setTafsir(null), toast }
+  const label = (act: ActId, s: number, a: number) => (act === 'play' && playing === `${s}:${a}` ? 'إيقاف' : act === 'play' && loadingAudio ? 'يحمّل…' : act === 'bookmark' && isMarked(`${s}:${a}`) ? 'إزالة' : ACTS.find((x) => x.id === act)!.l)
+  return { run, label, playing, bookmark, bookmarks: bookmarks?.marks, tafsir, closeTafsir: () => setTafsir(null), toast }
 }
 
 /** Verbatim Tafsir (Al-Muyassar) with book, author and source; loading and error states are explicit. */

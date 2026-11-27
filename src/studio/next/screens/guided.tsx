@@ -1,3 +1,5 @@
+import { TasmeeLink } from '../TasmeeLink'
+import { scopeOfAyat } from '../learning/scope'
 // رحلتي الموجّهة — Guided Smart Feed (design preview).
 //
 // Evolves the Memorization Journey feed (same CSS scroll-snap + IntersectionObserver
@@ -283,10 +285,13 @@ function GuidedRun({ gs }: { gs: GuidedSession }) {
     </div>
   )
   const viewSwitch = (
-    <div role="radiogroup" aria-label="طريقة عرض الحفظ" className="inline-flex rounded-full bg-night/[.06] p-1 text-[11.5px]" data-presentation-switch>
-      {([['focus', 'وضع الآية', 'layers'], ['mushaf', 'وضع المصحف', 'book']] as const).map(([k, l, icon]) => (
-        <button key={k} type="button" role="radio" aria-checked={gs.presentation === k} onClick={() => guided.setPresentation(k)} className={`press flex h-8 items-center gap-1 rounded-full px-3 ${gs.presentation === k ? 'bg-card font-semibold shadow-sm' : 'text-muted'}`}><Icon name={icon} size={13} />{l}</button>
-      ))}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <TasmeeLink scope={gs.scope} />
+      <div role="radiogroup" aria-label="طريقة عرض الحفظ" className="inline-flex rounded-full bg-night/[.06] p-1 text-[11.5px]" data-presentation-switch>
+        {([['focus', 'وضع الآية', 'layers'], ['mushaf', 'وضع المصحف', 'book']] as const).map(([k, l, icon]) => (
+          <button key={k} type="button" role="radio" aria-checked={gs.presentation === k} onClick={() => guided.setPresentation(k)} className={`press flex h-8 items-center gap-1 rounded-full px-3 ${gs.presentation === k ? 'bg-card font-semibold shadow-sm' : 'text-muted'}`}><Icon name={icon} size={13} />{l}</button>
+        ))}
+      </div>
     </div>
   )
   const scopeBar = (
@@ -546,7 +551,6 @@ function MultiRecall({ c, gs, ayah, hafs, onRecord, onNext }: BodyProps) {
   const [st, setSt] = useState<Record<number, 'hint' | 'shown'>>({})
   const [assessed, setAssessed] = useState<RecallOutcome | null>(gs.done[c.id]?.recall ?? null)
   const hints = Object.keys(st).length
-  const { go } = useProto()
   return (
     <div>
       <p className="mb-3 text-[12.5px] text-muted">{c.type === 'recite' ? 'النص مخفي. سمّع المقطع من حفظك بصوتك أو في سرّك، وأظهر ما تحتاجه فقط.' : 'سمّع هذه الآيات متتابعة من حفظك.'}</p>
@@ -572,7 +576,7 @@ function MultiRecall({ c, gs, ayah, hafs, onRecord, onNext }: BodyProps) {
           )
         })}
       </ol>
-      {c.type === 'recite' && <button type="button" onClick={() => go('recite')} className="press mt-3 flex items-center gap-1.5 text-[12px] text-muted underline"><Icon name="mic" size={13} />التسميع الذكي بالميكروفون · قيد الإعداد</button>}
+      {c.type === 'recite' && <TasmeeLink className="mt-3" scope={scopeOfAyat(c.s, c.from, c.to)}>سمّع هذا المقطع</TasmeeLink>}
       <Assess value={assessed} onPick={(r) => (setAssessed(r), onRecord({ status: 'done', recall: r, hintsUsed: hints }))} />
       {assessed && <Primary onClick={onNext}>التالي</Primary>}
     </div>

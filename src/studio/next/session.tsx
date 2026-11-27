@@ -1,14 +1,15 @@
+import { nextKey } from './productionStorage'
 // Shared memorization session for the Next-generation preview (design only).
 // Lives above the device frames in NextPreview so Desktop, Mobile and Both
 // show one session. Persisted under its own preview key (never the app store
 // or any account) so a refresh resumes the same passage, ayah and results.
 // Restoring a session never records progress; only explicit actions do.
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { surah } from '../../lib/quran'
 import { JOURNEY } from './data'
 import { quarantine, readRaw, safeWrite } from './storageSafety'
 
-export const SESSION_KEY = 'quranJourney.nextPreview.session.v1'
+export const SESSION_KEY = nextKey('.session.v1')
 
 export type Intent = 'hifz' | 'tadabbur' | 'both'
 export type MemResult = 'mastered' | 'shaky' | 'forgot'
@@ -124,8 +125,8 @@ function api(s: Session, up: (f: (s: Session) => Session) => void) {
     /** Surah-addressed variants, for screens (guided feed, revision) whose passage may differ from the journey's. */
     setNoteAt: (s: number, a: number, t: string) => up((x) => ({ ...x, notes: { ...x.notes, [akey(s, a)]: t } })),
     setMemAt: (s: number, a: number, r: MemResult) => up((x) => ({ ...x, mem: { ...x.mem, [akey(s, a)]: r } })),
-    toggleMark: (a: number) => up((x) => {
-      const k = akey(x.passage.s, a)
+    toggleMark: (a: number, s?: number) => up((x) => {
+      const k = akey(s ?? x.passage.s, a)
       const marks = { ...x.marks }
       if (marks[k]) delete marks[k]
       else marks[k] = true
@@ -163,7 +164,10 @@ export const useSession = () => useContext(SessionCtx)
 /** Owner hook for NextPreview: one session for every frame. */
 export function useSessionState(): SessionApi {
   const [s, set] = useState<Session>(loadSession)
-  useEffect(() => saveSession(s), [s])
+  const starting = useRef(s)
+  useEffect(() => {
+    if (s !== starting.current) saveSession(s)
+  }, [s])
   return useMemo(() => api(s, set), [s])
 }
 

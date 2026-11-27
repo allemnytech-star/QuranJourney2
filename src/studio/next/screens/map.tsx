@@ -159,7 +159,7 @@ export function JuzDetail({ j, compact = false }: { j: JuzInfo; compact?: boolea
         <p className="text-[15px] font-bold">{toAr(p)}٪</p>
       </div>
       <span className="mt-2 block h-2 overflow-hidden rounded-full bg-night/10"><span className="block h-full rounded-full" style={{ width: `${(j.memorised / j.total) * 100}%`, background: STATUS_COLOR[j.status === 'idle' ? 'progress' : j.status] }} /></span>
-      <p className="mt-1.5 text-[11px] text-muted">من سجلّ الحفظ المؤكَّد في المعاينة · القراءة والمراجعة لا تُضيئان المحطة</p>
+      <p className="mt-1.5 text-[11px] text-muted">من سجلّ الحفظ المؤكَّد · القراءة والمراجعة لا تُضيئان المحطة</p>
       {!compact && (
         <div className="mt-5">
           <p className="mb-2 text-[12.5px] font-semibold text-muted">السور في هذا الجزء</p>

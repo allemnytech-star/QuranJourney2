@@ -45,3 +45,13 @@
     0 0 0 1px var(--ui-line),
     0 20px 50px -18px rgba(0, 0, 0, 0.7);
 }
+
+.production-app {
+  height: 100vh;
+  height: 100dvh;
+  background-attachment: scroll;
+}
+.production-dock {
+  padding-bottom: 0.5rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}

@@ -1,3 +1,7 @@
+import { legacyUrl } from '../../../lib/applicationMode'
+import { PALETTES } from '../../../lib/palettes'
+import { setProductionAppearance, useProductionAppearance } from '../productionAppearance'
+import { migration } from '../productionStorage'
 // الإعدادات — learning preferences, offline AI model manager (design-ready), privacy and
 // local data (design preview). Device readings are real browser feature checks and the
 // browser's own storage estimate; nothing is downloaded and no progress is simulated.
@@ -29,13 +33,13 @@ function useDeviceCheck() {
 
 export function SettingsScreen() {
   const desk = useDevice() === 'desktop'
-  const { go } = useProto()
+  const { go, production } = useProto()
   const g = useGuided()
   return (
     <Chrome>
       <div className={desk ? 'no-scrollbar mx-auto h-full max-w-[900px] overflow-y-auto px-10 py-9' : 'px-5 pb-8 pt-4'} data-settings>
         {!desk && <MoreTabs />}
-        <Head title="الإعدادات" sub="تفضيلات التعلّم، ومحرك التسميع دون إنترنت، والخصوصية والبيانات المحلية." />
+        <Head title="الإعدادات" sub="تفضيلات التعلّم، والمظهر، والخصوصية والبيانات المحلية." />
         <div className="space-y-5">
           <Section title="التعلّم" icon="sprout">
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="تفضيل التعلّم">
@@ -53,18 +57,30 @@ export function SettingsScreen() {
           <ModelManager />
           <Section title="الخصوصية والبيانات المحلية" icon="lock">
             <ul className="space-y-1.5 text-[12.5px] leading-relaxed">
-              <li>كل بيانات المعاينة محفوظة على هذا المتصفح في هذا الجهاز فقط، بلا حساب ولا مزامنة ولا إرسال.</li>
+              <li>بياناتك محفوظة على هذا المتصفح في هذا الجهاز فقط، بلا حساب ولا مزامنة ولا إرسال.</li>
               <li>لا تُرسل أي تسجيلات صوتية. محرك التسميع المستقبلي يعمل على الجهاز نفسه.</li>
               <li>التطبيق مجاني بالكامل: بلا إعلانات ولا اشتراكات ولا خدمات ذكاء اصطناعي مدفوعة.</li>
             </ul>
-            <p className="mb-1 mt-3 text-[12px] font-semibold text-muted">مفاتيح التخزين المحلي (منفصلة عن التطبيق)</p>
+            <p className="mb-1 mt-3 text-[12px] font-semibold text-muted">مفاتيح التخزين المحلي</p>
             <ul className="space-y-1 text-[11.5px]">
               {Object.entries(STORE_AR).map(([k, v]) => <li key={k} className="flex flex-wrap justify-between gap-2 rounded-[10px] bg-night/[.03] px-2.5 py-1.5"><span>{v}</span><code className="text-muted" dir="ltr">{k}</code></li>)}
             </ul>
             <p className="mt-2 text-[11px] text-muted">لا يُمسح أي شيء تلقائيًا. البيانات غير المقروءة تُنسخ جانبًا قبل أي كتابة.</p>
           </Section>
+          {production && <Section title="البيانات السابقة" icon="library">
+            <div className="space-y-2 text-sm">
+              {migration === null && <p role="status">تعذّر إكمال نقل البيانات المحلية. يمكنك الوصول إلى البيانات السابقة من روابط الاسترجاع.</p>}
+              {migration?.legacy && <p>ملفات المستخدمين وسجلات النسخة السابقة متاحة في التطبيق السابق على هذا الجهاز.</p>}
+              {!!migration?.retainedInPreview.length && <p>بعض بيانات المعاينة بقيت في مكانها بسبب وجود بيانات تجريبية أو تعارض في التخزين.</p>}
+              <div className="flex flex-wrap gap-3">
+                <a href={legacyUrl} className="inline-flex min-h-11 items-center underline">افتح التطبيق السابق</a>
+                {(migration === null || !!migration.retainedInPreview.length) && <a href="#/design-studio/next" className="inline-flex min-h-11 items-center underline">استرجع بيانات المعاينة</a>}
+              </div>
+            </div>
+          </Section>}
           <Section title="المظهر وإمكانية الوصول" icon="palette">
-            <p className="text-[12.5px] leading-relaxed text-muted">لوحات الألوان والوضع الداكن متاحة من شريط المعاينة أعلاه، وتتبع إعدادات التطبيق نفسها. الحركة تحترم «تقليل الحركة» في النظام، والتنقّل بين البطاقات ممكن بالأزرار ولوحة المفاتيح، لا بالسحب وحده.</p>
+            {production && <AppearancePicker />}
+            <p className="text-[12.5px] leading-relaxed text-muted">الحركة تحترم «تقليل الحركة» في النظام، والتنقّل بين البطاقات ممكن بالأزرار ولوحة المفاتيح، لا بالسحب وحده.</p>
           </Section>
         </div>
       </div>
@@ -114,7 +130,7 @@ function ModelManager() {
   const mb = (n: number) => `${toAr(Math.round(n / 1048576))} م.ب`
   const free = d.est ? d.est.quota - d.est.usage : null
   return (
-    <Section title="محرك التسميع دون إنترنت" icon="mic" badge={<span className="rounded-full bg-sky/10 px-2 py-0.5 text-[10.5px] font-semibold text-sky">تصميم جاهز</span>}>
+    <Section title="محرك التسميع دون إنترنت" icon="mic" >
       <div className="flex items-center gap-3 rounded-[16px] bg-night/[.04] p-3" role="status" data-model-state>
         <Illustration id="model" size={44} />
         <div className="flex-1 text-[12.5px]"><p className="font-semibold">{MODEL_STATE_AR['not-loaded']}</p><p className="text-muted">حزمة المحرك غير مثبّتة في هذه النسخة؛ سيُفعَّل التحميل في مرحلة الهندسة.</p></div>
@@ -148,3 +164,24 @@ function ModelManager() {
 const Check = ({ ok, label }: { ok: boolean; label: string }) => (
   <li className="flex items-center gap-1.5 rounded-[10px] bg-night/[.03] px-2.5 py-1.5"><Icon name={ok ? 'check' : 'x'} size={12} className={ok ? 'text-leaf' : 'text-clay'} />{label}</li>
 )
+
+
+function AppearancePicker() {
+  const { appearance } = useProductionAppearance()
+  return (
+    <div className="mb-3 flex flex-wrap gap-3 text-sm">
+      <label className="grid gap-1">الوضع
+        <select aria-label="الوضع" value={appearance.theme} className="h-11 rounded-xl bg-card px-3 ring-1 ring-line"
+          onChange={(e) => setProductionAppearance({ theme: e.target.value as typeof appearance.theme })}>
+          <option value="system">حسب الجهاز</option><option value="light">فاتح</option><option value="dark">داكن</option>
+        </select>
+      </label>
+      <label className="grid gap-1">الألوان
+        <select aria-label="الألوان" value={appearance.palette} className="h-11 rounded-xl bg-card px-3 ring-1 ring-line"
+          onChange={(e) => setProductionAppearance({ palette: e.target.value as typeof appearance.palette })}>
+          {PALETTES.map((palette) => <option key={palette.id} value={palette.id}>{palette.ar}</option>)}
+        </select>
+      </label>
+    </div>
+  )
+}

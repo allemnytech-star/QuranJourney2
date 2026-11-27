@@ -1,3 +1,5 @@
+import { isProduction } from '../../lib/applicationMode'
+import { nextKey } from './productionStorage'
 // Shared preview progress & activity model for the Next-generation preview.
 //
 // One store, consumed by Home, Memorization Journey, Revision, Mushaf, Weekly
@@ -29,9 +31,9 @@ import { JUZ, PAGES, SHORT_SURAHS_FOR_KIDS, SURAHS, TOTAL_AYAT, fromGIndex, gInd
 import { HARAKAT, JOIN_WORDS, LETTERS, READING_LESSONS } from '../../screens/kidsData'
 import { quarantine, readRaw, safeWrite } from './storageSafety'
 
-export const STORAGE_KEY = 'quranJourney.nextPreview.v1'
+export const STORAGE_KEY = nextKey('.v1')
 /** Untouched copy of a v1 payload, written once before it is migrated to v2. */
-export const STORAGE_BACKUP_KEY = 'quranJourney.nextPreview.v1.backup-before-v2'
+export const STORAGE_BACKUP_KEY = nextKey('.v1.backup-before-v2')
 
 // ---------------------------------------------------------------- types
 export type PlanType = 'hifz' | 'revision' | 'reading' | 'khatmah' | 'custom'
@@ -684,14 +686,23 @@ function load(): PState {
   const { raw, blocked } = readRaw(STORAGE_KEY)
   if (blocked) {
     storage = 'unavailable'
-    return demoState()
+    return isProduction ? emptyState('empty') : demoState()
   }
-  if (!raw) return demoState()
+  if (!raw) return isProduction ? emptyState('empty') : demoState()
   try {
     const parsed = JSON.parse(raw)
     if (parsed?.v === 1) {
       // Keep the original payload untouched before upgrading it.
-      if (!readRaw(STORAGE_BACKUP_KEY).raw) safeWrite(STORAGE_BACKUP_KEY, raw)
+      const backup = readRaw(STORAGE_BACKUP_KEY).raw
+      if (backup === null && !safeWrite(STORAGE_BACKUP_KEY, raw)) {
+        quarantine(STORAGE_KEY, raw)
+        storage = 'recovered'
+        return emptyState('empty')
+      }
+      if (backup !== null && backup !== raw) {
+        quarantine(STORAGE_KEY, raw, true)
+        storage = 'recovered'
+      }
       migrated = true
     }
     const { state: st, dropped } = normalize(migrate(parsed))
@@ -723,7 +734,7 @@ function publish(next: PState) {
 }
 // The first visit writes the demo scenario under the preview key, so it is visible and resettable.
 // A recovered (unreadable) value is only replaced after its copy exists and the user acts.
-if ((storage as StorageStatus) === 'ok' && (!readRaw(STORAGE_KEY).raw || migrated)) save()
+if ((storage as StorageStatus) === 'ok' && ((!isProduction && !readRaw(STORAGE_KEY).raw) || migrated)) save()
 const clone = (s: PState): PState => ({ ...s, plans: [...s.plans], tasks: [...s.tasks], memorized: [...s.memorized], revisions: [...s.revisions], reading: [...s.reading], lessons: [...s.lessons], achievements: { ...s.achievements }, kidsBadges: { ...s.kidsBadges }, rewards: [...s.rewards], steps: { ...s.steps }, events: [...s.events] })
 /** Applies an idempotent progress event. Returns false when the event was already processed. */
 function commit(eventId: string, fn: (s: PState) => void | false): boolean {
