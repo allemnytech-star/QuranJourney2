@@ -1,3 +1,4 @@
+import { TasmeeLink } from '../TasmeeLink'
 // المراجعة — revision experience (design preview). For a plan task or a Juz opened
 // from the map it shows the exact range — page by page for page-based plans (each
 // page opens in the Mushaf), passage by passage (≤ 20 ayat) otherwise — with the
@@ -58,7 +59,7 @@ export function RevisionScreen() {
     <Chrome>
       <div className={desk ? 'no-scrollbar h-full overflow-y-auto px-10 py-9' : 'px-5 pb-8 pt-4'} data-revision>
         {!desk && <MoreTabs />}
-        <Head title="تثبيت المحفوظ والمراجعة" sub="راجع ما حفظته من ذاكرتك ثم تحقّق. المراجعة تثبّت الحفظ، ولا تُحتسب حفظًا جديدًا." action={<DataBar />} />
+        <Head title="تثبيت المحفوظ والمراجعة" sub="راجع ما حفظته من ذاكرتك ثم تحقّق. المراجعة تثبّت الحفظ، ولا تُحتسب حفظًا جديدًا." action={<><TasmeeLink scope="weak" /><DataBar /></>} />
         {task ? <TaskRevision key={task.id} t={task} onBack={() => go('revision')} /> : scope ? <ScopeRevision key={scope.stepKey} a={scope} /> : <><RetentionPanel /><TaskList tasks={all} /></>}
       </div>
     </Chrome>
@@ -141,6 +142,7 @@ function TaskRevision({ t, onBack }: { t: Task; onBack: () => void }) {
       <div className="rounded-[24px] bg-card p-5 ring-1 ring-line">
         <p className="text-[12px] text-muted">{t.plan.name} · {t.date === today() ? 'اليوم' : fmtDate(t.date)} · {t.unit === 'page' ? 'مراجعة بالصفحات' : 'مراجعة بالآيات'}</p>
         <h2 className="font-arabic-display text-[20px] font-bold" data-rev-range>{t.from != null && t.g0 != null ? rangeTitle(t.unit, t.from, t.to!, t.g0, t.g1!) : 'لا مقطع'}</h2>
+        {t.g0 != null && t.g1 != null && <TasmeeLink className="mt-2" scope={{ g0: t.g0, g1: t.g1 }}>سمّع نطاق المراجعة</TasmeeLink>}
         {!recorded && segs.length > 0 && <p className="mt-1 text-[12.5px] text-muted">{toAr(doneN)} من {toAr(segs.length)} {t.unit === 'page' ? 'صفحات' : 'مقاطع'} مؤكَّدة</p>}
         {recorded && <p className="mt-2 rounded-[14px] bg-leaf/10 px-3 py-2 text-[12.5px] text-leaf">أُتمّت هذه المراجعة{t.record?.demo ? ' (سجل تجريبي)' : ''}.</p>}
       </div>
@@ -184,6 +186,7 @@ function ScopeRevision({ a }: { a: ActiveTask }) {
         <p className="text-[12px] text-muted">مراجعة حرّة · ليست مهمة خطة</p>
         <h2 className="font-arabic-display text-[20px] font-bold" data-rev-range>{a.name} · {rangeAr('ayah', a.g0, a.g1)}</h2>
         <p className="mt-1 text-[12.5px] text-muted">{toAr(doneN)} من {toAr(segs.length)} مقاطع مؤكَّدة</p>
+        <TasmeeLink className="mt-2" scope={a}>سمّع نطاق المراجعة</TasmeeLink>
       </div>
       {!recorded && <RevisionRunner stepKey={a.stepKey} segs={segs} />}
       <div className="mt-4 rounded-[24px] bg-card p-5 ring-1 ring-line">

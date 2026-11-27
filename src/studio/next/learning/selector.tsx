@@ -14,7 +14,7 @@ type AyahChoice = 'single' | 'from' | 'range'
 const initialChoice = (seed?: ScopeSeed): Choice => (!seed ? 'ayahs' : seed.kind === 'surah' ? 'surah' : seed.kind === 'page' || seed.kind === 'pages' ? 'pages' : seed.kind === 'juz' ? 'juz' : 'ayahs')
 const initialAyahChoice = (seed?: ScopeSeed): AyahChoice => (seed?.kind === 'ayah' ? 'single' : seed?.kind === 'from-ayah' ? 'from' : 'range')
 
-export function MemorizationSelector({ seed, onClose }: { seed?: ScopeSeed; onClose: () => void }) {
+export function MemorizationSelector({ seed, onClose, onSelect }: { seed?: ScopeSeed; onClose: () => void; onSelect?: (scope: MemorizationScope) => void }) {
   const g = useGuided()
   const ses = useSession()
   const { go } = useProto()
@@ -39,21 +39,25 @@ export function MemorizationSelector({ seed, onClose }: { seed?: ScopeSeed; onCl
     try {
       if (choice === 'surah') return scopeOfSurah(s, 'manual')
       if (choice === 'juz') return scopeOfJuz(juz, 'manual')
-      if (choice === 'pages') return scopeOfPages(fromPage, toPage, 'manual')
-      if (from < 1 || from > surah(s).ayat) return null
+      if (choice === 'pages') {
+        if (!Number.isInteger(fromPage) || !Number.isInteger(toPage) || fromPage < 1 || toPage < fromPage || toPage > 604) return null
+        return scopeOfPages(fromPage, toPage, 'manual')
+      }
+      if (!Number.isInteger(from) || from < 1 || from > surah(s).ayat) return null
       if (ayahChoice === 'single') return scopeOfAyat(s, from, from, 'manual')
       if (ayahChoice === 'from') return scopeFromAyah(s, from, 'manual')
-      if (to < from || to > surah(s).ayat) return null
+      if (!Number.isInteger(to) || to < from || to > surah(s).ayat) return null
       return scopeOfAyat(s, from, to, 'manual')
     } catch {
       return null
     }
   }, [choice, s, from, to, fromPage, toPage, juz, ayahChoice])
   const summary = draft && scopeSummary(draft)
-  const active = g.session && !g.session.finishedAt ? g.session : null
+  const active = !onSelect && g.session && !g.session.finishedAt ? g.session : null
 
   const start = () => {
     if (!draft || !summary) return setErr('تحقّق من النطاق المحدّد.')
+    if (onSelect) { onSelect(draft); onClose(); return }
     if (active && !replace) return setErr('لديك جلسة غير مكتملة. اختر استئنافها أو أكّد بدء نطاق جديد.')
     if (!guided.startScope(draft, 'daily', g.profile.minutes, presentation, experience)) return setErr('تعذّر بدء هذا النطاق.')
     const first = scopeChunks(draft)[0]
@@ -67,13 +71,13 @@ export function MemorizationSelector({ seed, onClose }: { seed?: ScopeSeed; onCl
 
   const field = 'h-10 rounded-xl bg-card px-3 text-[13px] ring-1 ring-line outline-none focus:ring-2 focus:ring-gold'
   return (
-    <div className="absolute inset-0 z-[90] flex items-end justify-center bg-black/35 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="اختيار نطاق الحفظ" data-memorization-selector>
+    <div className="absolute inset-0 z-[90] flex items-end justify-center bg-black/35 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label={onSelect ? 'اختيار نطاق التسميع' : 'اختيار نطاق الحفظ'} data-memorization-selector>
       <button type="button" aria-label="إغلاق" onClick={onClose} className="absolute inset-0" />
       <div className="relative max-h-[92%] w-full max-w-[620px] overflow-y-auto rounded-[28px] bg-parchment p-5 shadow-[0_30px_70px_-20px_rgba(0,0,0,.5)]">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-gold-soft text-gold"><Icon name="sprout" size={19} /></span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-arabic-display text-[20px] font-bold">ابدأ الحفظ</h2>
+            <h2 className="font-arabic-display text-[20px] font-bold">{onSelect ? 'اختر نطاق التسميع' : 'ابدأ الحفظ'}</h2>
             <p className="text-[12.5px] text-muted">اختر النطاق كاملًا؛ يُقسَّم داخليًا إلى مقاطع لا تتجاوز ٢٠ آية دون أن يُحذف شيء.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="إغلاق" className="press flex h-9 w-9 items-center justify-center rounded-full hover:bg-night/[.06]"><Icon name="x" size={16} /></button>
@@ -98,7 +102,7 @@ export function MemorizationSelector({ seed, onClose }: { seed?: ScopeSeed; onCl
 
         <div className="mt-3 rounded-[18px] bg-card/60 p-3 ring-1 ring-line">
           {choice === 'surah' && (
-            <label className="block text-[12px] text-muted">حفظ السورة كاملة
+            <label className="block text-[12px] text-muted">{onSelect ? 'تسميع السورة كاملة' : 'حفظ السورة كاملة'}
               <select value={s} onChange={(e) => setS(Number(e.target.value))} className={`${field} mt-1 w-full`}>{SURAHS.map((x) => <option key={x.n} value={x.n}>{toAr(x.n)}. {x.ar} · {toAr(x.ayat)} آية</option>)}</select>
             </label>
           )}
@@ -137,13 +141,13 @@ export function MemorizationSelector({ seed, onClose }: { seed?: ScopeSeed; onCl
           </div>
         ) : <p role="alert" className="mt-3 text-[12.5px] text-clay">تحقّق من بداية النطاق ونهايته.</p>}
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        {!onSelect && <><div className="mt-4 grid grid-cols-2 gap-2">
           <Choice title="التجربة" value={experience} onChange={setExperience} options={[['guided', 'رحلتي الموجّهة'], ['free', 'الحفظ الحر']]} />
           <Choice title="طريقة العرض" value={presentation} onChange={setPresentation} options={[['focus', 'وضع الآية'], ['mushaf', 'وضع المصحف']]} />
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted">وضع المصحف الحالي سياق صفحة كامل بالنص الموثّق المتدفّق؛ ليس تخطيطًا ثابتًا أصيلًا لغياب بيانات مواضع الكلمات والأسطر المرخّصة.</p>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted">وضع المصحف الحالي سياق صفحة كامل بالنص الموثّق المتدفّق؛ ليس تخطيطًا ثابتًا أصيلًا لغياب بيانات مواضع الكلمات والأسطر المرخّصة.</p></>}
         {err && <p role="alert" className="mt-2 rounded-[12px] bg-clay/10 px-3 py-2 text-[12px] text-clay">{err}</p>}
-        <button type="button" onClick={start} disabled={!summary || (!!active && !replace)} className="press mt-4 h-12 w-full rounded-full bg-night text-[14px] font-semibold text-parchment disabled:opacity-40" data-start-memorization>ابدأ الحفظ بهذا النطاق</button>
+        <button type="button" onClick={start} disabled={!summary || (!!active && !replace)} className="press mt-4 h-12 w-full rounded-full bg-night text-[14px] font-semibold text-parchment disabled:opacity-40" data-start-memorization>{onSelect ? 'اختر هذا النطاق' : 'ابدأ الحفظ بهذا النطاق'}</button>
       </div>
     </div>
   )

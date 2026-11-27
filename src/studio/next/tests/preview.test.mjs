@@ -35,6 +35,7 @@ async function fresh() {
   return { server, load }
 }
 let pass = 0
+let skipped = 0
 const results = []
 async function test(name, fn) {
   try {
@@ -410,40 +411,162 @@ await test('S4. unreadable Azkar progress and session are copied aside, not over
   await f2.server.close()
 })
 
-await test('S5. data saved by the ORIGINAL implementation (checkpoint 59c6301) stays readable', async () => {
-  mem.clear()
-  const tmp = path.join(root, 'src/studio/next/tests/.v1-progress.tmp.ts')
-  const src = execFileSync('git', ['show', '59c6301:src/studio/next/progress.ts'], { cwd: root, encoding: 'utf8' })
-  fs.writeFileSync(tmp, src.replace("'../../lib/quran'", "'../../../lib/quran'").replace("'../../screens/kidsData'", "'../../../screens/kidsData'"))
+// The Figma export history omits 59c6301. Exercise the same bug using an
+// explicit v1 wire-format fixture, and also run the original generator when available.
+let originalProgress
+try {
+  originalProgress = execFileSync('git', ['show', '59c6301:src/studio/next/progress.ts'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+} catch {
+  skipped++
+  results.push('  SKIP S5 original generator (Git object 59c6301 unavailable)')
+}
+
+async function checkV1PageMigration(v1, eventId) {
+  const before = JSON.parse(v1)
+  assert.equal(before.v, 1)
+  const buggy = before.memorized.find((m) => m.eventId === eventId)
+  assert.deepEqual([buggy.from, buggy.to], [100, 101], 'v1 stored page numbers as ayah indices')
+  mem.set(KEY, v1)
+  const { server, load } = await fresh()
   try {
-    let f = await fresh()
-    const Old = await f.load('src/studio/next/tests/.v1-progress.tmp.ts')
-    // Real v1 data, including the old bug: a page-based Hifz task stored pages as ayah indices.
-    const id = Old.actions.createPlan({ name: 'قديم', type: 'hifz', customActivity: 'hifz', scope: { kind: 'pages', from: 100, to: 110 }, unit: 'page', daily: 2, days: ALL_DAYS, workload: 'moderate', targetDate: null, reminder: null, primary: false })
-    assert.equal(Old.actions.completeTask(id, Old.today(), { confirmedMemorised: true }), true)
-    const v1 = mem.get(KEY)
-    assert.equal(JSON.parse(v1).v, 1)
-    const buggy = JSON.parse(v1).memorized.find((m) => m.eventId === `task:${id}:${Old.today()}`)
-    assert.deepEqual([buggy.from, buggy.to], [100, 101], 'old code stored page numbers')
-    await f.server.close()
-    f = await fresh()
-    const P = await f.load('src/studio/next/progress.ts')
-    const Q = await f.load('src/lib/quran.ts')
+    const P = await load('src/studio/next/progress.ts')
+    const Q = await load('src/lib/quran.ts')
     const st = P.getPreview()
     assert.equal(P.storageStatus(), 'ok')
-    assert.equal(st.plans.length, JSON.parse(v1).plans.length, 'all plans kept (demo + user)')
-    assert.equal(st.tasks.length, JSON.parse(v1).tasks.length, 'all task records kept')
-    assert.equal(st.lessons.length, JSON.parse(v1).lessons.length)
-    assert.deepEqual(Object.keys(st.achievements).sort(), Object.keys(JSON.parse(v1).achievements).sort())
-    const fixed = st.memorized.find((m) => m.eventId === `task:${id}:${P.today()}`)
-    assert.deepEqual([fixed.from, fixed.to], [Q.gIndex(...Q.PAGES[99]), Q.gIndex(...Q.pageEnd(101))])
+    assert.equal(st.plans.length, before.plans.length)
+    assert.equal(st.tasks.length, before.tasks.length)
+    assert.equal(st.lessons.length, before.lessons.length)
+    assert.deepEqual(Object.keys(st.achievements).sort(), Object.keys(before.achievements).sort())
+    const fixed = st.memorized.filter((m) => m.eventId === eventId)
+    assert.equal(fixed.length, 1)
+    assert.deepEqual([fixed[0].from, fixed[0].to], [Q.gIndex(...Q.PAGES[99]), Q.gIndex(...Q.pageEnd(101))])
     assert.equal(mem.get('quranJourney.nextPreview.v1.backup-before-v2'), v1)
-    // every screen-level derivation works on the upgraded data
     P.derived(st)
     for (const p of st.plans) P.planTasks(st, p, P.weekDates())
-    await f.server.close()
+  } finally {
+    await server.close()
+  }
+}
+
+await test('S5. v1 page-unit progress is repaired and original bytes are recoverable', async () => {
+  mem.clear()
+  const date = '2026-01-01'
+  const at = date + 'T12:00:00.000Z'
+  const planId = 'old-plan'
+  const eventId = ['task', planId, date].join(':')
+  const plan = { ...draft({ scope: { kind: 'pages', from: 100, to: 110 }, unit: 'page', daily: 2 }), id: planId, createdAt: date, status: 'active' }
+  const v1 = JSON.stringify({
+    v: 1, seed: 'empty', plans: [plan], events: [eventId],
+    tasks: [{ id: 'old-task', planId, date, at, activity: 'hifz', unit: 'page', from: 100, to: 101, eventId }],
+    memorized: [{ id: 'old-mem', from: 100, to: 101, at, source: 'task', eventId }],
+    revisions: [], reading: [], lessons: [{ id: 'old-lesson', at, source: 'kids', eventId: 'lesson:old-lesson' }],
+    achievements: { 'old-award': { id: 'old-award', at, eventId } }, kidsBadges: {}, rewards: [],
+  })
+  await checkV1PageMigration(v1, eventId)
+})
+
+if (originalProgress) await test('S5. data generated by the original Git checkpoint stays readable', async () => {
+  mem.clear()
+  const tmp = path.join(root, 'src/studio/next/tests/.v1-progress.tmp.ts')
+  fs.writeFileSync(tmp, originalProgress.replace("'../../lib/quran'", "'../../../lib/quran'").replace("'../../screens/kidsData'", "'../../../screens/kidsData'"))
+  try {
+    const { server, load } = await fresh()
+    let eventId
+    try {
+      const Old = await load('src/studio/next/tests/.v1-progress.tmp.ts')
+      const id = Old.actions.createPlan(draft({ name: 'قديم', scope: { kind: 'pages', from: 100, to: 110 }, unit: 'page', daily: 2, primary: false }))
+      const date = Old.today()
+      assert.equal(Old.actions.completeTask(id, date, { confirmedMemorised: true }), true)
+      eventId = ['task', id, date].join(':')
+    } finally {
+      await server.close()
+    }
+    await checkV1PageMigration(mem.get(KEY), eventId)
   } finally {
     fs.rmSync(tmp, { force: true })
+  }
+})
+
+await test('production storage imports once and keeps the exact original progress, sessions and legacy data', async () => {
+  mem.clear()
+  const { server, load } = await fresh()
+  try {
+    const M = await load('src/studio/next/productionStorage.ts')
+    const progress = JSON.stringify({ v: 2, seed: 'empty', memorized: [{ from: 1, to: 1, eventId: 'one' }], events: ['one'] })
+    const guided = JSON.stringify({ v: 1, session: { idx: 3 }, saved: [] })
+    const legacy = JSON.stringify({ v: 1, theme: 'dark', palette: 'sea', profiles: [{ id: 'keep-me' }] })
+    mem.set(KEY, progress)
+    mem.set('quranJourney.nextPreview.guided.v1', guided)
+    mem.set('rafiqi.app.v1', legacy)
+    assert.deepEqual(M.migrateProductionStorage(), { v: 1, retainedInPreview: [], legacy: true })
+    assert.equal(mem.get(M.productionKey('.v1')), progress)
+    assert.equal(mem.get(M.productionKey('.guided.v1')), guided)
+    assert.deepEqual(JSON.parse(mem.get(M.APPEARANCE_KEY)), { theme: 'dark', palette: 'sea' })
+    M.migrateProductionStorage()
+    assert.equal(JSON.parse(mem.get(M.productionKey('.v1'))).memorized.length, 1)
+    assert.equal(mem.get(KEY), progress)
+    assert.equal(mem.get('rafiqi.app.v1'), legacy)
+  } finally {
+    await server.close()
+  }
+})
+
+await test('production migration leaves demo/conflicting stores in place and retries interrupted writes', async () => {
+  mem.clear()
+  const { server, load } = await fresh()
+  try {
+    const M = await load('src/studio/next/productionStorage.ts')
+    const demo = JSON.stringify({ v: 2, seed: 'demo', plans: [{ id: 'user-plan' }] })
+    const azkar = JSON.stringify({ v: 1, favorites: ['a'] })
+    const destination = JSON.stringify({ v: 1, favorites: ['b'] })
+    const session = JSON.stringify({ v: 1, notes: { '1:1': 'my note' } })
+    const activeTask = JSON.stringify({ active: { kind: 'plan', planId: 'user-plan' } })
+    mem.set(KEY, demo)
+    mem.set('quranJourney.nextPreview.azkar.v1', azkar)
+    mem.set(M.productionKey('.azkar.v1'), destination)
+    mem.set('quranJourney.nextPreview.session.v1', session)
+    mem.set('quranJourney.nextPreview.activeTask.v1', activeTask)
+    failWrites.add(M.MIGRATION_KEY)
+    assert.equal(M.migrateProductionStorage(), null)
+    assert.equal(mem.get(M.productionKey('.session.v1')), session)
+    failWrites.delete(M.MIGRATION_KEY)
+    assert.deepEqual(M.migrateProductionStorage()?.retainedInPreview, ['.v1', '.azkar.v1', '.activeTask.v1'])
+    assert.equal(mem.get(M.productionKey('.azkar.v1')), destination)
+    assert.equal(mem.has(M.productionKey('.v1')), false)
+    assert.equal(mem.get(KEY), demo)
+    assert.equal(mem.get('quranJourney.nextPreview.activeTask.v1'), activeTask)
+  } finally {
+    failWrites.clear()
+    await server.close()
+  }
+})
+
+await test('legacy single-learner bookmarks, reflections and reading position copy without a profile merge', async () => {
+  mem.clear()
+  const { server, load } = await fresh()
+  try {
+    const M = await load('src/studio/next/productionStorage.ts')
+    const raw = JSON.stringify({ v: 1, mode: 'learner', activeId: 'one', profiles: [{
+      id: 'one', bookmarks: ['1:2', '1:2', '999:1'], notes: { '1:2': 'note', '1:90': 'invalid' },
+      last: { s: 2, a: 5, mode: 'read' }, progress: { '1:1': { status: 'memorized' } },
+    }] })
+    mem.set('rafiqi.app.v1', raw)
+    assert.equal(M.migrateProductionStorage().legacy, true)
+    const session = JSON.parse(mem.get(M.productionKey('.session.v1')))
+    assert.deepEqual(session.marks, { '1:2': true })
+    assert.deepEqual(session.notes, { '1:2': 'note' })
+    assert.deepEqual(JSON.parse(mem.get(M.MUSHAF_KEY)).nav, { pg: 2, focus: { s: 2, a: 5 } })
+    assert.equal(mem.has(M.productionKey('.v1')), false, 'legacy progress is still tied to its original profile')
+    assert.equal(mem.get('rafiqi.app.v1'), raw)
+    mem.clear()
+    const multiple = JSON.parse(raw)
+    multiple.profiles.push({ id: 'two', bookmarks: ['1:3'] })
+    mem.set('rafiqi.app.v1', JSON.stringify(multiple))
+    M.migrateProductionStorage()
+    assert.equal(mem.has(M.productionKey('.session.v1')), false)
+    assert.equal(mem.has(M.MUSHAF_KEY), false)
+  } finally {
+    await server.close()
   }
 })
 
@@ -602,6 +725,6 @@ await test('S5. data saved by the ORIGINAL implementation (checkpoint 59c6301) s
 }
 
 console.log(results.join('\n'))
-console.log(`\n${pass} passed, ${results.length - pass} failed`)
+console.log(`\n${pass} passed, ${results.length - pass - skipped} failed, ${skipped} skipped`)
 // The Azkar store keeps a midnight-rollover interval alive; end explicitly.
 process.exit(process.exitCode ?? 0)

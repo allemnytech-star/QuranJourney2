@@ -156,7 +156,7 @@ function BookDetail({ j, memBetween: memorisedBetween }: { j: JuzInfo; memBetwee
         <button type="button" onClick={() => go('map')} className="press flex h-10 items-center justify-center gap-1.5 rounded-full bg-night/[.05] text-[12.5px] font-semibold"><Icon name="path" size={15} />على الخريطة</button>
         <button type="button" onClick={() => go('rewards')} className="press flex h-10 items-center justify-center gap-1.5 rounded-full bg-night/[.05] text-[12.5px] font-semibold"><Icon name="star" size={15} />الإنجازات</button>
       </div>
-      <p className="mt-3 text-[11px] text-muted">من سجلّ الحفظ المؤكَّد في المعاينة · نفس مصدر خريطة الرحلة</p>
+      <p className="mt-3 text-[11px] text-muted">من سجلّ الحفظ المؤكَّد · نفس مصدر خريطة الرحلة</p>
     </div>
   )
 }

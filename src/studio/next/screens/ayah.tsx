@@ -1,3 +1,5 @@
+import { TasmeeLink } from '../TasmeeLink'
+import { scopeOfAyat } from '../learning/scope'
 // رحلة الحفظ — Memorization Journey (design preview). Real KFGQPC Hafs text and real
 // recitation audio; Tafsir is fetched verbatim via lib/tafsir with its source.
 // The active passage, current ayah, results, reflections, bookmarks and linked
@@ -85,11 +87,13 @@ export const textSize = (t: string, desktop: boolean) => {
 
 export function AyahJourney() {
   const device = useDevice()
-  const { go } = useProto()
+  const { go, production } = useProto()
   const ses = useSession()
   const guidedState = useGuided()
   const freeScope = guidedState.session?.experience === 'free' && !guidedState.session.finishedAt ? guidedState.session : null
   const { passage: p, cur, intent, nonce } = ses.s
+  const currentTask = useActiveTask()
+  const reciteRange = freeScope?.scope ?? (currentTask?.activity === 'hifz' ? currentTask : scopeOfAyat(p.s, p.from, p.to))
   const pkey = pkeyOf(p)
   const text = useAyat(p)
   const audio = useAudio(p.s)
@@ -246,13 +250,14 @@ export function AyahJourney() {
                 <p className="font-arabic-display text-[19px] font-bold">رحلة الحفظ</p>
                 <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted" data-passage-label>
                   {passageLabel}
-                  {isDemoPassage(p) && <Demo>مقطع تجريبي</Demo>}
+                  {!production && isDemoPassage(p) && <Demo>مقطع تجريبي</Demo>}
                   <button type="button" onClick={() => setPicker(true)} className="press inline-flex h-7 items-center gap-1 rounded-full bg-gold-soft px-2.5 text-[12px] font-semibold text-night" data-open-picker>
                     <Icon name="book" size={13} />اختيار مقطع الحفظ
                   </button>
                 </p>
               </div>
               <button type="button" onClick={() => freeScope ? guided.setPresentation('mushaf') : setScopePicker(true)} className="press flex h-9 items-center gap-1.5 rounded-full bg-gold-soft px-3 text-[12px] font-semibold"><Icon name={freeScope ? 'book' : 'sprout'} size={14} />{freeScope ? 'وضع المصحف' : 'ابدأ الحفظ'}</button>
+              <TasmeeLink scope={reciteRange} />
               {intentSwitch}
             </div>
             <HifzTaskBanner />
@@ -294,7 +299,7 @@ export function AyahJourney() {
             </button>
             <button type="button" onClick={() => freeScope ? guided.setPresentation('mushaf') : setScopePicker(true)} aria-label={freeScope ? 'وضع المصحف' : 'ابدأ الحفظ'} className="press flex h-10 w-10 items-center justify-center rounded-full hover:bg-night/5"><Icon name={freeScope ? 'book' : 'sprout'} /></button>
           </div>
-          {intentSwitch}
+          <div className="flex flex-wrap items-center justify-center gap-2">{intentSwitch}<TasmeeLink scope={reciteRange} /></div>
           <HifzTaskBanner compact />
           {freeScope && <FreeScopeBanner compact />}
         </div>
@@ -307,7 +312,7 @@ export function AyahJourney() {
               {x.id === 'similar' ? 'متشابهات' : x.ar.split(' ')[0]}
             </button>
           ))}
-          <button type="button" disabled={!ready} onClick={() => (ses.toggleMark(cur), setToast(marked ? 'أُزيلت العلامة' : 'وُضعت علامة · في المعاينة فقط، لا تُحفظ في حسابك'))} aria-pressed={marked} aria-label={marked ? `إزالة العلامة عن الآية ${cur}` : `وضع علامة على الآية ${cur} (معاينة فقط)`} className="press flex flex-col items-center gap-1 text-[10.5px] font-medium text-night/80 disabled:opacity-40" data-bookmark>
+          <button type="button" disabled={!ready} onClick={() => (ses.toggleMark(cur), setToast(marked ? 'أُزيلت العلامة' : 'وُضعت علامة'))} aria-pressed={marked} aria-label={marked ? `إزالة العلامة عن الآية ${cur}` : `وضع علامة على الآية ${cur}`} className="press flex flex-col items-center gap-1 text-[10.5px] font-medium text-night/80 disabled:opacity-40" data-bookmark>
             <span className={`glass-panel flex h-12 w-12 items-center justify-center rounded-full ${marked ? 'text-leaf' : ''}`}><Icon name="bookmark" size={20} fill={marked} /></span>
             {marked ? 'إزالة' : 'علامة'}
           </button>
@@ -532,12 +537,12 @@ export function PassagePicker({ onClose }: { onClose: () => void }) {
         <p className={`mt-2 min-h-5 text-[12px] ${err ? 'text-clay' : 'text-muted'}`} role={err ? 'alert' : undefined} data-picker-msg>
           {err ?? `سورة ${surah(s).ar} · ${toAr(n)} آية · ${draft.from === draft.to ? `الآية ${toAr(draft.from)}` : `الآيات ${toAr(draft.from)}–${toAr(draft.to)}`}`}
         </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted">معاينة فقط: تغيير المقطع يبدأ جلسة مؤقّتة جديدة ولا يمسّ سجلات حفظك الحقيقية.</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted">يبدأ تغيير المقطع تمرينًا جديدًا. تبقى سجلات الحفظ محفوظة.</p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="submit" disabled={!!err} className="press h-11 flex-1 rounded-full bg-night text-[13.5px] font-semibold text-parchment disabled:opacity-40" data-apply>ابدأ هذا المقطع</button>
           <button type="button" onClick={onClose} className="press h-11 rounded-full px-4 text-[13px] ring-1 ring-line">إلغاء</button>
         </div>
-        {!isDemoPassage(ses.s.passage) && <button type="button" onClick={() => (ses.setPassage(DEMO_PASSAGE), onClose())} className="press mt-2 text-[12px] text-muted underline">العودة إلى المقطع التجريبي (الملك ١–٥)</button>}
+        {!isDemoPassage(ses.s.passage) && <button type="button" onClick={() => (ses.setPassage(DEMO_PASSAGE), onClose())} className="press mt-2 text-[12px] text-muted underline">اختيار سورة الملك ١–٥</button>}
       </form>
     </div>
   )
@@ -684,7 +689,7 @@ function UnderstandPanel({ p, a, text, note, onSave }: { p: Passage; a: number; 
         <p className="mb-2 text-[12.5px] text-muted">ما الذي استوقفك في هذه الآية؟ وما الذي تودّ العمل به اليوم؟</p>
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} placeholder="اكتب تأمّلك بكلماتك…" className="w-full resize-none rounded-2xl bg-card/80 p-3 text-[14px] leading-relaxed outline-none ring-1 ring-line placeholder:text-muted focus:ring-2 focus:ring-gold" />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-[11.5px] text-muted">{note ? 'محفوظ في المعاينة فقط' : 'يُحفظ على جهازك عند التنفيذ'}</span>
+          <span className="text-[11.5px] text-muted">{note ? 'محفوظ على هذا الجهاز' : 'يُحفظ على جهازك عند التنفيذ'}</span>
           <button type="button" disabled={!draft.trim()} onClick={() => onSave(draft.trim())} className="press h-9 rounded-full bg-night px-4 text-[13px] font-semibold text-parchment disabled:opacity-40">حفظ التأمّل</button>
         </div>
       </Block>
@@ -754,7 +759,7 @@ function MemorizePanel({ a, text, hafs, audio, result, onResult }: { a: number; 
                 <button key={k} type="button" onClick={() => onResult(k)} aria-pressed={result === k} className={`press rounded-2xl py-3 text-[13px] font-semibold ${c} ${result === k ? 'ring-2 ring-night/40 ring-offset-2 ring-offset-card' : ''}`}>{l}</button>
               ))}
             </div>
-            {result && <p className="mt-3 text-center text-[12px] text-muted">سُجّلت النتيجة في المعاينة فقط: «{memLabel(result)}»</p>}
+            {result && <p className="mt-3 text-center text-[12px] text-muted">سُجّلت النتيجة: «{memLabel(result)}»</p>}
           </div>
         )}
       </div>

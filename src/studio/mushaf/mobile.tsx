@@ -1,9 +1,9 @@
 // Mobile Mushaf reader mock (design preview only).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { I } from '../kit'
-import { RECITERS } from '../../lib/quran'
+import { PAGES, RECITERS } from '../../lib/quran'
 import { IconBtn, ModeSwitch, SettingsPanel, type Mode, type Tone } from './desktop'
-import { ACTS, ActionToast, TafsirPanel, useAyahActions, type ActId } from './actions'
+import { ACTS, ActionToast, TafsirPanel, useAyahActions, type ActId, type AyahBookmarks } from './actions'
 import { MushafPage, PageError, PageSkeleton, SURAHS, TOTAL_PAGES, clampPage, juzName, quranFont, surahName, toAr, useFocus, usePageState, type Go, type Marks, type NavFocus, type PageData } from './page'
 import { NavPanel } from './nav'
 
@@ -29,7 +29,7 @@ export function Phone({ children, label }: { children: ReactNode; label?: string
   )
 }
 
-function TopBar({ d, bookmarked, onBack }: { d: PageData; bookmarked?: boolean; onBack?: () => void }) {
+function TopBar({ d, bookmarked, onBack, onBookmark }: { d: PageData; bookmarked?: boolean; onBack?: () => void; onBookmark?: () => void }) {
   return (
     <div className="mp-glass absolute inset-x-0 top-0 z-30 flex h-[100px] items-end gap-1 px-3 pb-2" style={{ borderRadius: 0 }}>
       <IconBtn n="chevron" label="رجوع" size={44} onClick={onBack} />
@@ -37,7 +37,7 @@ function TopBar({ d, bookmarked, onBack }: { d: PageData; bookmarked?: boolean; 
         <p className="truncate text-[15px] font-semibold">{d.surahs.map(surahName).join("، ")}</p>
         <p className="text-[11.5px] text-(--ui-muted)">{juzName(d.juz)} · الحزب {toAr(d.hizb)}</p>
       </div>
-      <IconBtn n="bookmark" label="علامة" size={44} on={bookmarked} />
+      <IconBtn n="bookmark" label="علامة عند بداية الصفحة" size={44} on={bookmarked} onClick={onBookmark} />
     </div>
   )
 }
@@ -150,11 +150,12 @@ type Drive = {
   onBack?: () => void
   /** Shared ayah focus from the host (applied once while fresh). */
   focus?: NavFocus | null
+  bookmarks?: AyahBookmarks
   onRecite?: (s: number, a: number) => void
   onMemorize?: (s: number, a: number) => void
 }
 
-export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onView, onGo, onBack, focus = null, onRecite, onMemorize }: { pg: number; view: MobileView; tone: Tone; setTone: (t: Tone) => void; label: string } & Drive) {
+export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onView, onGo, onBack, focus = null, onRecite, onMemorize, bookmarks }: { pg: number; view: MobileView; tone: Tone; setTone: (t: Tone) => void; label: string } & Drive) {
   const page = usePageState(pg)
   const d = page.d
   const [mode, setMode] = useState<Mode>('mushaf')
@@ -162,7 +163,7 @@ export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onVie
   const [tap, setTap] = useState<{ s: number; a: number } | null>(null)
   const area = useRef<HTMLDivElement>(null)
   const flash = useFocus(area, d, focus)
-  const acts = useAyahActions(onRecite, onMemorize)
+  const acts = useAyahActions(onRecite, onMemorize, bookmarks)
   const live = !!onView // host-driven: actions and audio are real
   const goTo: Go | undefined = onGo && ((n, f) => (setTap(null), onGo(clampPage(n), f), onView?.('reading')))
   useEffect(() => setTap(null), [pg])
@@ -176,7 +177,7 @@ export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onVie
   if (flash) state[flash] = 'selected'
   if (live && acts.playing) state[acts.playing] = 'playing'
   if (d && pickS && pick && (view === 'ayah' || (!live && view === 'playing'))) state[`${pickS}:${pick.a}`] = view === 'ayah' ? 'selected' : 'playing'
-  const marks: Marks = { state, bookmark: acts.bookmark ?? undefined }
+  const marks: Marks = { state, bookmark: acts.bookmark ?? undefined, bookmarks: acts.bookmarks }
   const chrome = view !== 'immersive'
   const close = onView && (() => onView('reading'))
   // Interactive only when a host drives it; the standalone preview stays a static state board.
@@ -191,7 +192,9 @@ export function MobileReader({ pg, view, tone, setTone, label, bare, auto, onVie
   }
   const body = (
     <div className="mp-canvas absolute inset-0" dir="rtl">
-      {d && chrome && <TopBar d={d} onBack={onBack} />}
+      {d && chrome && <TopBar d={d} onBack={onBack}
+        bookmarked={!!bookmarks?.marks[PAGES[pg - 1].join(':')]}
+        onBookmark={bookmarks && (() => { const [s, a] = PAGES[pg - 1]; bookmarks.toggle(a, s) })} />}
       <div ref={area} className={`mp-scroll absolute inset-0 overflow-y-auto px-2.5 ${chrome ? 'pb-[120px] pt-[108px]' : 'pb-10 pt-[52px]'}`} onClick={toggleChrome}>
         {d ? <MushafPage d={d} size={17 * size} compact marks={marks} onAyah={onAyah} /> : page.status === 'error' ? <PageError pg={pg} onRetry={page.retry} compact /> : <PageSkeleton compact />}
       </div>

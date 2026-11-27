@@ -343,7 +343,7 @@ function Compare() {
             <Icon name={linked ? 'check' : 'plus'} size={16} />
             {linked ? 'مرتبطة بمقطع حفظك' : 'اربطها بمقطع حفظك للتدريب'}
           </button>
-          <p className="mt-1.5 text-[11px] text-muted">{mine ? 'تُحفظ في جلسة المعاينة فقط، وتُوسم «مطابقة نصية آلية» لا «متشابهات موثّقة».' : `للربط، اجعل إحدى الآيتين من مقطعك (سورة ${surah(p.s).ar} ${toAr(p.from)}–${toAr(p.to)}).`}</p>
+          <p className="mt-1.5 text-[11px] text-muted">{mine ? 'تُحفظ في الجلسة، وتُوسم «مطابقة نصية آلية» لا «متشابهات موثّقة».' : `للربط، اجعل إحدى الآيتين من مقطعك (سورة ${surah(p.s).ar} ${toAr(p.from)}–${toAr(p.to)}).`}</p>
         </section>
       )}
       {same && <p className="mt-3 text-center text-[12.5px] text-muted">اختر آيتين مختلفتين للمقارنة.</p>}

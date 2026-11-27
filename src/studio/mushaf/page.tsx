@@ -151,7 +151,7 @@ export const surahName = (s: number) => `سورة ${surah(s).ar}`
 export { toAr }
 
 export type AyahState = 'selected' | 'playing'
-export type Marks = { state?: Record<string, AyahState>; bookmark?: string }
+export type Marks = { state?: Record<string, AyahState>; bookmark?: string; bookmarks?: Record<string, true> }
 export type WordVisibility = 'shown' | 'hidden' | 'first'
 export type VisualMask = {
   visibility: (s: number, a: number, word: number) => WordVisibility
@@ -226,7 +226,7 @@ export function PageText({ d, size, marks = {}, onAyah, mask }: { d: PageData; s
             {b.ayat.map(({ a, t }) => (
               <Ayah key={a} k={key(b.s, a)} state={marks.state?.[key(b.s, a)]} onClick={onAyah && ((el) => onAyah(b.s, a, el))}>
                 {mask ? <MaskedWords text={t} s={b.s} a={a} mask={mask} /> : t}{' '}<span className="mp-num">{toAr(a)}</span>
-                {marks.bookmark === key(b.s, a) && <BookmarkDot />}
+                {(marks.bookmark === key(b.s, a) || marks.bookmarks?.[key(b.s, a)]) && <BookmarkDot />}
               </Ayah>
             ))}
           </p>
@@ -265,7 +265,11 @@ function MaskedWords({ text, s, a, mask }: { text: string; s: number; a: number;
 function Ayah({ k, state, children, onClick }: { k: string; state?: AyahState; children: ReactNode; onClick?: (el: HTMLElement) => void }) {
   return (
     <>
-      <span className="mp-ayah" data-k={k} data-state={state} onClick={onClick && ((e) => onClick(e.currentTarget))}>
+      <span className="mp-ayah" data-k={k} data-state={state} onClick={onClick && ((e) => onClick(e.currentTarget))}
+        role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick && ((e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e.currentTarget) }
+        })}>
         {children}
       </span>{' '}
     </>

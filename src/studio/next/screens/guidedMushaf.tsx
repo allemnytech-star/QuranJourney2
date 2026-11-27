@@ -1,3 +1,5 @@
+import { TasmeeLink } from '../TasmeeLink'
+import { scopeOfPages } from '../learning/scope'
 // Full-page context view for the same guided session/card. It uses the verified
 // flowing Mushaf renderer because fixed printed-page geometry is not bundled.
 // Presentation changes never write memorization progress.
@@ -70,6 +72,7 @@ export function GuidedMushafView({ s, a }: { s: number; a: number }) {
           <p className="text-[10.5px] text-muted">{currentOnPage ? `الآية الحالية: ${surah(s).ar} ${toAr(a)}` : `الآية الحالية في الصفحة ${toAr(targetPage)}`}</p>
         </div>
         <button type="button" onClick={() => setPg((n) => Math.min(TOTAL_PAGES, n + 1))} disabled={pg >= TOTAL_PAGES} aria-label="الصفحة التالية" className="press flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-line disabled:opacity-30"><Icon name="chevron" size={15} className="rotate-180" /></button>
+        <TasmeeLink scope={scopeOfPages(pg, pg)}>سمّع الصفحة</TasmeeLink>
         <button type="button" onClick={() => (guided.setAwayToMushaf(true), openMushaf(s, a))} className="press h-9 rounded-full px-3 text-[11.5px] ring-1 ring-line">افتح المصحف الرقمي</button>
       </div>
 

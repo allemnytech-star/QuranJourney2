@@ -1,3 +1,4 @@
+import { nextKey } from '../productionStorage'
 // Guided-learning preview store: onboarding profile, the active guided session and
 // the learner's own weak-word records. Preview-only key, this browser/device only.
 // Shared by every device frame (module-level store), so Mobile/Desktop/Both never
@@ -9,7 +10,7 @@ import { validatePassage, type Passage } from '../session'
 import type { CardOutcome, LearningPreference, SessionPreset } from './contracts'
 import { scopeChunks, scopeOfAyat, validScope, type MemorizationScope } from './scope'
 
-export const GUIDED_KEY = 'quranJourney.nextPreview.guided.v1'
+export const GUIDED_KEY = nextKey('.guided.v1')
 
 export type Profile = {
   onboarded: boolean

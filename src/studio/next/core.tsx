@@ -13,7 +13,7 @@ export type ScreenId = 'home' | 'guided' | 'mushaf' | 'ayah' | 'similar' | 'plan
 export type Device = 'mobile' | 'desktop'
 export type Nav = { screen: ScreenId; param?: string }
 
-type Ctx = { nav: Nav; go: (s: ScreenId, param?: string) => void; device: Device }
+type Ctx = { nav: Nav; go: (s: ScreenId, param?: string) => void; device: Device; production?: boolean }
 export const ProtoCtx = createContext<Ctx>({ nav: { screen: 'home' }, go: () => {}, device: 'mobile' })
 export const useProto = () => useContext(ProtoCtx)
 export const useDevice = () => useContext(ProtoCtx).device
@@ -119,15 +119,23 @@ export const NAV: { id: ScreenId; icon: string; ar: string; dock?: boolean }[] =
   { id: 'settings', icon: 'settings', ar: 'الإعدادات' },
 ]
 
+const productionDock = [
+  { id: 'home', ar: 'الرئيسية', icon: 'home' },
+  { id: 'mushaf', ar: 'المصحف', icon: 'book' },
+  { id: 'recite', ar: 'سمّع', icon: 'mic' },
+  { id: 'map', ar: 'تقدمي', icon: 'path' },
+  { id: 'plans', ar: 'المزيد', icon: 'more' },
+] as const
+
 const active = (s: ScreenId) => (s === 'azkar-list' ? 'azkar' : s === 'welcome' ? 'settings' : s)
 
 /** App chrome matching the production Shell: desktop side rail, mobile floating dock. */
 export function Chrome({ children, bare = false, dock = true }: { children: ReactNode; bare?: boolean; dock?: boolean }) {
-  const { nav, go, device } = useProto()
+  const { nav, go, device, production } = useProto()
   if (device === 'desktop')
     return (
       <div className="flex h-full">
-        <aside className="flex w-60 shrink-0 flex-col border-e border-line/70 px-4 py-6">
+        <aside className="no-scrollbar flex w-60 overflow-y-auto shrink-0 flex-col border-e border-line/70 px-4 py-6">
           <div className="mb-7 flex items-center gap-2.5 px-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-gold text-white"><Icon name="book" size={20} /></span>
             <span className="leading-none"><span className="block font-arabic-display text-xl font-bold">القرآن رفيقي</span><span className="mt-1 block text-[11px] tracking-[0.18em] text-muted">AL-QURAN RAFIQI</span></span>
@@ -136,20 +144,41 @@ export function Chrome({ children, bare = false, dock = true }: { children: Reac
             {NAV.map((n) => (
               <button key={n.id} type="button" onClick={() => go(n.id)} aria-current={active(nav.screen) === n.id ? 'page' : undefined} className={`press flex items-center gap-3 rounded-full px-4 py-2.5 text-start text-[14.5px] ${active(nav.screen) === n.id ? 'bg-night font-medium text-parchment' : 'text-night/70 hover:bg-night/5'}`}>
                 <Icon name={n.icon} size={20} />
-                {n.ar}
+                {production && n.id === 'recite' ? 'سمّع' : n.ar}
               </button>
             ))}
           </nav>
-          <p className="px-3 text-[11px] leading-relaxed text-muted">معاينة تصميم · لا تتصل ببيانات التطبيق · التقدّم محفوظ على هذا المتصفح في هذا الجهاز فقط</p>
+          {!production && <p className="px-3 text-[11px] leading-relaxed text-muted">معاينة تصميم · لا تتصل ببيانات التطبيق · التقدّم محفوظ على هذا المتصفح في هذا الجهاز فقط</p>}
         </aside>
         <main className="no-scrollbar min-w-0 flex-1 overflow-y-auto"><StorageNotice />{children}</main>
       </div>
     )
   return (
     <div className="relative h-full">
-      <main className={`no-scrollbar h-full overflow-y-auto ${bare ? '' : 'pt-12'} ${dock ? 'pb-28' : ''}`}>{children}</main>
-      <div className="pointer-events-none absolute inset-x-0 top-12 z-[70] [&>*]:pointer-events-auto"><StorageNotice /></div>
-      {dock && (
+      <main className={`no-scrollbar h-full overflow-y-auto ${bare || production ? '' : 'pt-12'} ${dock ? 'pb-28' : ''}`}>{children}</main>
+      <div className="pointer-events-none absolute inset-x-0 top-12 z-[70] empty:hidden [&>*]:pointer-events-auto"><StorageNotice /></div>
+      {dock && production && (
+        <nav className="production-dock absolute inset-x-0 bottom-0 z-40 px-2" aria-label="التنقل">
+          <div className="glass-panel mx-auto grid w-full max-w-[460px] grid-cols-5 items-end rounded-[26px] px-1 py-1 shadow-lg">
+            {productionDock.map((n) => {
+              const current = n.id === 'plans'
+                ? !productionDock.some((item) => item.id !== 'plans' && item.id === active(nav.screen))
+                : active(nav.screen) === n.id
+              const mic = n.id === 'recite'
+              return (
+                <button key={n.id} type="button" onClick={() => go(n.id)} aria-current={current ? 'page' : undefined}
+                  className={`press flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[18px] text-[11px] ${current ? 'font-bold text-night' : 'text-night/75'}`}>
+                  <span className={mic ? '-mt-4 grid h-12 w-12 place-items-center rounded-full bg-night text-parchment shadow-md ring-2 ring-card' : ''}>
+                    <Icon name={n.icon} size={mic ? 25 : 20} />
+                  </span>
+                  {n.ar}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      )}
+      {dock && !production && (
         <nav className="absolute inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-6" aria-label="التنقل">
           <div className="glass-panel flex items-center gap-1 rounded-full p-1.5">
             {NAV.filter((n) => n.dock).map((n) => {
@@ -191,11 +220,11 @@ export function Head({ title, sub, action, back }: { title: ReactNode; sub?: Rea
 
 /** Mini sub-navigation for the secondary screens on mobile (reached from the dock's "more"). */
 export function MoreTabs() {
-  const { nav, go, device } = useProto()
+  const { nav, go, device, production } = useProto()
   if (device === 'desktop') return null
   return (
     <div className="no-scrollbar -mx-5 mb-5 flex gap-1.5 overflow-x-auto px-5">
-      {NAV.filter((n) => !n.dock).map((n) => (
+      {NAV.filter((n) => production ? !['home', 'mushaf', 'recite', 'map'].includes(n.id) : !n.dock).map((n) => (
         <button key={n.id} type="button" onClick={() => go(n.id)} className={`press flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] ${nav.screen === n.id ? 'bg-night text-parchment' : 'bg-card text-night/75 ring-1 ring-line'}`}>
           <Icon name={n.icon} size={15} />
           {n.ar}

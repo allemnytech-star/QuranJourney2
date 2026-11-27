@@ -159,7 +159,7 @@ function PlanActions({ p, toast, onDetails, onEdit, compact = false, onDeleted }
       {ask && (
         <Confirm
           title={ask === 'delete' ? `حذف «${p.name}»؟` : ask === 'close' ? 'إغلاق الخطة؟' : 'أرشفة الخطة؟'}
-          body={ask === 'delete' ? 'تُحذف الخطة ومهامها من المعاينة. ما سجّلته من حفظ ومراجعة وقراءة يبقى، والإنجازات التي نلتها لا تُسحب.' : ask === 'close' ? 'الإغلاق إجراء إداري: تتوقف مهامها وتنتقل إلى «المغلقة يدويًا». لا تُعدّ الخطة مكتملة ولا تُمنح به أي إنجازات؛ اكتمال الخطة يُحتسب فقط حين تبلغ هدفها بمهام مسجّلة. التقدّم يبقى كما سُجّل.' : 'تختفي الخطة من الخريطة وتبقى في الأرشيف، ويمكنك إخراجها لاحقًا.'}
+          body={ask === 'delete' ? 'تُحذف الخطة ومهامها. ما سجّلته من حفظ ومراجعة وقراءة يبقى، والإنجازات التي نلتها لا تُسحب.' : ask === 'close' ? 'الإغلاق إجراء إداري: تتوقف مهامها وتنتقل إلى «المغلقة يدويًا». لا تُعدّ الخطة مكتملة ولا تُمنح به أي إنجازات؛ اكتمال الخطة يُحتسب فقط حين تبلغ هدفها بمهام مسجّلة. التقدّم يبقى كما سُجّل.' : 'تختفي الخطة من الخريطة وتبقى في الأرشيف، ويمكنك إخراجها لاحقًا.'}
           confirm={ask === 'delete' ? 'حذف نهائي' : ask === 'close' ? 'إغلاق' : 'أرشفة'}
           danger={ask === 'delete'}
           onCancel={() => setAsk(null)}
@@ -211,7 +211,7 @@ function PlanDetail({ id, onBack, onEdit, toast }: { id: string; onBack: () => v
             ['الإصدار', `${toAr(p.version)}${p.version > 1 ? ` · منذ ${fmtDate(p.versions[p.versions.length - 1].from)}` : ''}`],
             ['الإنجاز المستهدف', p.targetDate ? fmtDate(p.targetDate) : 'غير محدّد'],
             ['بدأت', fmtDate(p.createdAt)],
-            ['التذكير', p.reminder ? `${p.reminder} (معاينة · لا إشعار)` : 'بلا تذكير'],
+            ['التذكير', p.reminder ? `${p.reminder} (لا إشعار)` : 'بلا تذكير'],
             ['المتوقّع للإتمام', p.status === 'active' ? (estimateFinish(pr.total - pr.done, p.daily, p.days) ? fmtDate(estimateFinish(pr.total - pr.done, p.daily, p.days)!) : '—') : '—'],
             ['الوجهة', activityOf(p) === 'hifz' ? 'رحلة الحفظ' : activityOf(p) === 'revision' ? 'المراجعة' : 'المصحف'],
           ].map(([k, v]) => <div key={k} className="rounded-[14px] bg-night/[.04] px-3 py-2"><dt className="text-muted">{k}</dt><dd className="mt-0.5 font-semibold">{v}</dd></div>)}
@@ -353,7 +353,7 @@ function PlanForm({ id, onDone, onCancel }: { id?: string; onDone: (id: string |
             </label>
             <label className="text-[12px] text-muted">وقت التذكير
               <input type="time" value={d.reminder ?? ''} onChange={(e) => set({ reminder: e.target.value || null })} className={`${field} mt-1 w-full`} />
-              <span className="mt-1 block text-[11px]">في المعاينة لا يُرسل إشعار.</span>
+              <span className="mt-1 block text-[11px]">لا يُرسل إشعار.</span>
               <Err m={errs.reminder} />
             </label>
           </div>

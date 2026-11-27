@@ -2,8 +2,9 @@
 
 **Quran Journey — احفظ بفهم، وثبّت بذكاء**
 
-Scope: the Next Preview (`src/studio/next/`, route `#/design-studio/next`), the release candidate for the future standalone app. Production routes, stores and entry point are **unchanged**.
-Recovery checkpoint before this round: git tag `checkpoint/before-master-ux-upgrade`.
+The approved Next-generation screens are the Phase 1 production application at the root URL. The Design Studio still hosts its review surface at `#/design-studio/next`. See [Production migration](PRODUCTION_MIGRATION.md) for the rollout, data compatibility, Tasmee entry points and checks.
+
+The pre-migration Git checkpoint is `checkpoint/production-tasmee-base` at `2ec3b614024b18c162b05f55581c08629c0294a7`. The notes below retain the original design handoff and its historical verification.
 
 Status labels used below:
 - **EXISTING**: worked before this round, reused as is.
@@ -41,7 +42,7 @@ Status labels used below:
 | `welcome` | الترحيب والإعداد | **NEW · FUNCTIONAL** skippable onboarding |
 | `mushaf`, `plans`, `week`, `map`, `rewards`, `library`, `kids`, `azkar`, `azkar-list`, `similar` | | EXISTING, unchanged |
 
-- Mobile dock: Home, Guided, Free memorisation, Mushaf, Azkar and More. The other screens appear in the side rail and the More tabs.
+- The production mobile dock has الرئيسية، المصحف، سمّع، تقدمي، المزيد. The desktop rail and More tabs expose the other screens, including Guided, Free memorisation, Plans, Azkar, Achievements and Kids.
 - Entry points to the three experiences:
   - Home hero and home learning card.
   - The Guided start screen («تجارب أخرى»).
@@ -267,13 +268,14 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 - Implement a `TilawaEngine` adapter and the model manager.
 - Persist `MistakeRecord`.
 
-**Production migration requirements:**
-- Extract the screens from the preview wrapper (`Chrome`/`PhoneShell`/`Fit` are preview-only).
-- Map the preview keys to production stores with a migration.
-- Remove the Design Studio toolbar.
-- Run acceptance tests on real devices.
+**Phase 1 production entry**
 
-## 10. Verification (this round)
+- `src/studio/next/ProductionApp.tsx` owns one session provider and one responsive screen. It reuses the application chrome in `core.tsx`.
+- Tasmee uses the shared scope selector and the existing Guided manual recall cards. The canonical range is carried in the route and survives refresh.
+- The storage migration copies compatible stores to the production namespace. Legacy profile records and conflicting snapshots remain accessible through Settings.
+- Real older Android devices and assistive technology remain to be checked before release.
+
+## 10. Verification from the original design handoff
 
 - `pnpm exec tsc --noEmit`: clean.
 - `pnpm run build`: succeeds. The only warning is the existing chunk-size warning.

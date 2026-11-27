@@ -1,3 +1,4 @@
+import { nextKey } from '../productionStorage'
 // Azkar progress for the preview — isolated from the app and from the other
 // preview data, under its own key. Counts reset on a new local calendar day;
 // favourites, settings and the per-day history are kept.
@@ -5,7 +6,7 @@ import { useSyncExternalStore } from 'react'
 import { COLLECTIONS, collection, countable, itemsOf } from './catalog'
 import { quarantine, readRaw, safeWrite } from '../storageSafety'
 
-export const AZKAR_KEY = 'quranJourney.nextPreview.azkar.v1'
+export const AZKAR_KEY = nextKey('.azkar.v1')
 export type FontSize = 's' | 'm' | 'l' | 'xl'
 export type AState = {
   v: 1

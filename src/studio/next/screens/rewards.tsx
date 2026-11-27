@@ -13,7 +13,7 @@ import { DataBar } from '../previewUi'
 
 const ayatLabel = (n: number) => `${toAr(n)} ${n >= 3 && n <= 10 ? 'آيات' : 'آية'}`
 const GROUPS: Record<AchDef['group'], string> = { hifz: 'الحفظ', juz: 'الأجزاء', revision: 'المراجعة', consistency: 'الثبات', plans: 'الخطط' }
-const eventAr = (e: string) => (e === 'demo-seed' ? 'السيناريو التجريبي' : e.startsWith('task:') ? 'إتمام مهمة خطة' : e.startsWith('mem:journey') ? '«أتقنتها» في رحلة الحفظ' : e.startsWith('rev:') ? 'مراجعة مكتملة' : e.startsWith('lesson:') ? 'إتمام درس' : e.startsWith('edit:') ? 'تحديث خطة' : 'حدث في المعاينة')
+const eventAr = (e: string) => (e === 'demo-seed' ? 'السيناريو التجريبي' : e.startsWith('task:') ? 'إتمام مهمة خطة' : e.startsWith('mem:journey') ? '«أتقنتها» في رحلة الحفظ' : e.startsWith('rev:') ? 'مراجعة مكتملة' : e.startsWith('lesson:') ? 'إتمام درس' : e.startsWith('edit:') ? 'تحديث خطة' : 'نشاط مسجّل')
 
 export function Rewards() {
   const { nav, go } = useProto()
@@ -57,7 +57,7 @@ function AdultRewards() {
         <Summary icon="star" v={toAr(earned.length)} l="إنجازات نلتها" id="earned" />
         <Summary icon="repeat" v={toAr(d.revSessions)} l="مراجعات مكتملة" id="revisions" />
       </div>
-      <p className="text-[12px] leading-relaxed text-muted">{isDemoData(st) ? 'تشمل سجلات تجريبية محدّدة مسبقًا بتواريخ ثابتة؛ الإنجازات المعلَّمة «تجريبي» ليست إنجازات حقيقية.' : 'محسوبة من سجلاتك في المعاينة فقط.'} المراجعة والقراءة لا تزيدان الآيات المحفوظة، والأيام النشطة تُعدّ مجموعًا لا سلسلة.</p>
+      <p className="text-[12px] leading-relaxed text-muted">{isDemoData(st) ? 'تشمل سجلات تجريبية محدّدة مسبقًا بتواريخ ثابتة؛ الإنجازات المعلَّمة «تجريبي» ليست إنجازات حقيقية.' : 'محسوبة من سجلاتك على هذا الجهاز.'} المراجعة والقراءة لا تزيدان الآيات المحفوظة، والأيام النشطة تُعدّ مجموعًا لا سلسلة.</p>
 
       {open && (
         <div role="dialog" aria-label="تفاصيل الإنجاز" className="flex items-center gap-4 rounded-[26px] bg-gold-soft/60 p-5 ring-1 ring-gold/30">
@@ -114,7 +114,7 @@ function AdultRewards() {
         )}
       </section>
 
-      <RulesLab />
+      <PreviewRules />
     </div>
   )
 }
@@ -130,6 +130,10 @@ function Summary({ icon, v, l, id }: { icon: string; v: string; l: string; id?: 
 }
 
 /** Interactive demonstration of the counting rules. */
+function PreviewRules() {
+  return useProto().production ? null : <RulesLab />
+}
+
 function RulesLab() {
   const [hifz, setHifz] = useState(0)
   const [rev, setRev] = useState(0)
@@ -220,7 +224,7 @@ function KidsRewards() {
               </button>
             ))}
           </div>
-          <p className="mt-3 text-[12px] text-night/70">زينة فقط تُحفظ في المعاينة؛ لا تغيّر الدروس ولا التقدّم.</p>
+          <p className="mt-3 text-[12px] text-night/70">زينة محفوظة على هذا الجهاز.</p>
         </section>
       </div>
 
