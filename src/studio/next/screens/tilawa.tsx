@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 // Tilawa recitation UI (design-ready). The @tilawa/core SDK is NOT installed and no
 // model is downloaded: the live status is therefore always "engine unavailable",
 // and every other state is documented, never simulated. No recognition, mistake,
@@ -108,6 +109,8 @@ export function TilawaSection({ p }: { p: P }) {
 }
 
 
+const SmartTasmee = lazy(() => import('../tilawa/SmartTasmee'))
+
 export function TasmeeEntry() {
   const { nav, go } = useProto()
   const state = useGuided()
@@ -171,10 +174,9 @@ export function TasmeeEntry() {
           </button>
           {error && <p role="alert" className="text-sm text-clay">{error}</p>}
         </section>}
-        <section className="rounded-[22px] bg-night/[.04] p-4 text-sm ring-1 ring-line" data-tilawa-status>
-          <h2 className="font-semibold">التسميع الذكي غير متاح حاليًا</h2>
-          <p className="mt-1 text-muted">{mode === 'free' ? 'يتطلّب التعرّف التلقائي على موضع التلاوة محرك التسميع. اختر سورة أو صفحة أو آيات للتسميع اليدوي.' : 'التعرّف على التلاوة وتصحيحها يحتاجان إلى محرك التسميع. يمكنك استخدام التسميع اليدوي الآن.'}</p>
-        </section>
+        <Suspense fallback={<p role="status">جارٍ تحميل واجهة التسميع…</p>}>
+          <SmartTasmee scope={scope} free={mode === 'free'} />
+        </Suspense>
       </div>
       {picker && <MemorizationSelector seed={picker} onClose={() => setPicker(null)} onSelect={choose} />}
     </Chrome>

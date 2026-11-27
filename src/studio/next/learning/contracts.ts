@@ -4,7 +4,7 @@
 // renders, so Codex can plug in:
 //   - AdaptiveHifzEngine  — chooses the next guided card (local, deterministic)
 //   - SmartRevisionEngine — schedules reviews (local, deterministic)
-//   - TilawaEngine        — on-device recitation tracking (@tilawa/core, not installed)
+//   - TilawaEngine        — on-device recitation tracking (@tilawa/core)
 // Until an engine exists, the preview uses the documented fixed sequence in
 // ./sequence.ts and shows honest "not available yet" states. No adaptive
 // decision, review date, recognition event or model progress is ever simulated.
@@ -122,6 +122,7 @@ export type TilawaEvent =
   | { kind: 'lost' }
   | { kind: 'mistake'; s: number; a: number; w: number; type: MistakeKind; certainty: 'suspected' | 'confirmed' }
   | { kind: 'self-corrected'; s: number; a: number; w: number }
+  | { kind: 'observation'; id: string; s: number; a: number; w: number; type: MistakeKind; state: 'suspected' | 'confirmed' | 'resolved' | 'uncertain' }
   | { kind: 'end' }
 
 export interface TilawaEngine {
