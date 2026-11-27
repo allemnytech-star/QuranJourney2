@@ -1,3 +1,4 @@
+import { RecitationHistory } from '../tilawa/History'
 // تثبيت المحفوظ — retention section of the Revision screen (design preview).
 //
 // Honest by construction: learning states shown are derived only from what the
@@ -103,6 +104,7 @@ function Box({ title, icon, children }: { title: string; icon: string; children:
 type Filter = 'open' | 'reviewed' | 'all'
 /** «مواضع تحتاج إلى مراجعة»: the learner's own revealed words, plus the (empty) engine record list. */
 export function MistakeHistory() {
+  const { production } = useProto()
   const g = useGuided()
   const [src, setSrc] = useState<'self' | 'engine'>('self')
   const [f, setF] = useState<Filter>('open')
@@ -121,7 +123,7 @@ export function MistakeHistory() {
           ))}
         </div>
       </div>
-      {src === 'engine' ? (
+      {src === 'engine' ? production ? <RecitationHistory /> : (
         <div className="rounded-[16px] border border-dashed border-line p-4 text-[12.5px] text-muted" data-engine-empty>
           لا توجد سجلات من محرك التسميع: المحرك غير مثبّت في هذه النسخة. ستظهر هنا لاحقًا الأنواع التي يدعمها فعلًا ({Object.values(MISTAKE_AR).join('، ')}) مع موضعها الدقيق، ولن يُعرض أي سجل مُختلق.
         </div>

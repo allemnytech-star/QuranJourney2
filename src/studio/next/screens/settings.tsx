@@ -1,3 +1,4 @@
+import { TilawaModels } from '../tilawa/ModelManager'
 import { legacyUrl } from '../../../lib/applicationMode'
 import { PALETTES } from '../../../lib/palettes'
 import { setProductionAppearance, useProductionAppearance } from '../productionAppearance'
@@ -54,11 +55,11 @@ export function SettingsScreen() {
             <button type="button" onClick={() => go('welcome')} className="press mt-3 h-10 rounded-full px-4 text-[12.5px] ring-1 ring-line" data-rerun-onboarding>{g.profile.onboarded ? 'أعد الإعداد التعريفي' : 'ابدأ الإعداد التعريفي'}</button>
           </Section>
           <SelfReported />
-          <ModelManager />
+          {production ? <TilawaModels /> : <ModelManager />}
           <Section title="الخصوصية والبيانات المحلية" icon="lock">
             <ul className="space-y-1.5 text-[12.5px] leading-relaxed">
               <li>بياناتك محفوظة على هذا المتصفح في هذا الجهاز فقط، بلا حساب ولا مزامنة ولا إرسال.</li>
-              <li>لا تُرسل أي تسجيلات صوتية. محرك التسميع المستقبلي يعمل على الجهاز نفسه.</li>
+              <li>تُعالج التلاوة على هذا الجهاز. لا يُرفع الصوت ولا يُحفظ التسجيل.</li>
               <li>التطبيق مجاني بالكامل: بلا إعلانات ولا اشتراكات ولا خدمات ذكاء اصطناعي مدفوعة.</li>
             </ul>
             <p className="mb-1 mt-3 text-[12px] font-semibold text-muted">مفاتيح التخزين المحلي</p>

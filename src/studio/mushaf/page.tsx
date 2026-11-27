@@ -5,7 +5,7 @@
 // Madinah pages, but there is no line-level layout data or page imagery, so the
 // lines reflow and justify rather than reproducing the printed 15-line page.
 import { useEffect, useState, type ReactNode, type RefObject } from 'react'
-import { BISMILLAH, BISMILLAH_HAFS, JUZ, SURAHS, firstLetter, hasBismillahHeader, hizbOf, juzOf, loadMushaf, pageOf, surah, toAr } from '../../lib/quran'
+import { BISMILLAH, BISMILLAH_HAFS, JUZ, SURAHS, firstLetter, isMark, hasBismillahHeader, hizbOf, juzOf, loadMushaf, pageOf, surah, toAr } from '../../lib/quran'
 import { TOTAL_PAGES, clampPage, pageSpans, pageStart } from '../../lib/usePage'
 
 /** `hafs` is false when the KFGQPC Hafs file for that surah failed to load and the Tanzil text is shown instead. */
@@ -155,6 +155,7 @@ export type Marks = { state?: Record<string, AyahState>; bookmark?: string; book
 export type WordVisibility = 'shown' | 'hidden' | 'first'
 export type VisualMask = {
   visibility: (s: number, a: number, word: number) => WordVisibility
+  wordClass?: (s: number, a: number, word: number) => string
   onWord?: (s: number, a: number, word: number) => void
 }
 const key = (s: number, a: number) => `${s}:${a}`
@@ -241,10 +242,11 @@ function MaskedWords({ text, s, a, mask }: { text: string; s: number; a: number;
   return (
     <>
       {ws.map((word, i) => {
-        const v = mask.visibility(s, a, i)
-        if (v === 'shown') return <span key={i}>{word}{i < ws.length - 1 ? ' ' : ''}</span>
+        const v = isMark(word) ? 'shown' : mask.visibility(s, a, i)
+        const tone = mask.wordClass?.(s, a, i) ?? ''
+        if (v === 'shown') return <span key={i}><span className={'inline-block rounded-[0.2em] ' + tone}>{word}</span>{i < ws.length - 1 ? ' ' : ''}</span>
         return (
-          <span key={i} className="relative inline-block rounded-[0.2em] bg-(--accent-soft)/45" data-word={`${s}:${a}:${i}`}>
+          <span key={i}><span className={'relative inline-block rounded-[0.2em] ' + (tone || 'bg-(--accent-soft)/45')} data-word={`${s}:${a}:${i}`}>
             <span aria-hidden style={{ visibility: 'hidden' }}>{word}</span>
             <button
               type="button"
@@ -254,8 +256,7 @@ function MaskedWords({ text, s, a, mask }: { text: string; s: number; a: number;
             >
               {v === 'first' ? `${firstLetter(word)}…` : ''}
             </button>
-            {i < ws.length - 1 ? ' ' : ''}
-          </span>
+          </span>{i < ws.length - 1 ? ' ' : ''}</span>
         )
       })}
     </>

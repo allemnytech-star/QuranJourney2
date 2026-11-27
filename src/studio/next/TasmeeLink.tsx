@@ -1,6 +1,10 @@
 import { TOTAL_AYAT } from '../../lib/quran'
-import { Icon, useProto } from './core'
+import { Icon, useProto, type Nav } from './core'
 import { scopeOfCanonical, scopeSummary } from './learning/scope'
+
+let origin: Nav | undefined
+export const rememberTasmeeOrigin = (nav: Nav) => { origin = nav }
+export const getTasmeeOrigin = () => origin
 
 export type TasmeeRange = { g0: number; g1: number }
 

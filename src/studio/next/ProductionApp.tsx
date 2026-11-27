@@ -1,3 +1,4 @@
+import { rememberTasmeeOrigin } from './TasmeeLink'
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import './next.css'
 import { navigate, useRoute } from '../../lib/router'
@@ -87,6 +88,7 @@ export default function ProductionApp() {
   }, [dark, appearance.palette, kids])
 
   const go = (next: ScreenId, param?: string) => {
+    if (next === 'recite' && screen !== 'recite') rememberTasmeeOrigin({ screen, param: q.target })
     if (next !== 'ayah' && next !== 'mushaf' && next !== 'similar' && next !== 'recite' && session.s.away) session.setAway(null)
     const path = next === 'home' ? '/' : '/' + next
     navigate(param ? path + '?' + new URLSearchParams({ target: param }) : path)

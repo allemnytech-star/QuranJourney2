@@ -37,8 +37,8 @@ Status labels used below:
 | `guided` | رحلتي الموجّهة | **NEW · FUNCTIONAL** Guided Smart Feed |
 | `ayah` | الحفظ الحر (رحلة الحفظ) | EXISTING free vertical feed, unchanged behaviour |
 | `revision` | تثبيت المحفوظ والمراجعة | EXISTING, plus a NEW retention section and «مواضع تحتاج إلى مراجعة» |
-| `recite` | التسميع الذكي وتصحيح الحفظ | NEW Tilawa-ready UI (DESIGN READY). The Muaalem flow is now a collapsed research tool |
-| `settings` | الإعدادات | NEW: preferences, self-reported memorisation, model manager (DESIGN READY), privacy and local data |
+| `recite` | التسميع الذكي وتصحيح الحفظ | Production opt-in on-device Tasmee and manual recall. Muaalem remains a Studio research tool. |
+| `settings` | الإعدادات | Learning preferences, self-reported memorisation, Tilawa model management, privacy and local data. |
 | `welcome` | الترحيب والإعداد | **NEW · FUNCTIONAL** skippable onboarding |
 | `mushaf`, `plans`, `week`, `map`, `rewards`, `library`, `kids`, `azkar`, `azkar-list`, `similar` | | EXISTING, unchanged |
 
@@ -150,7 +150,7 @@ The exact original word remains in flow with `visibility:hidden`, preserving its
 | استمع وردّد | `listen` card. Segment repetition is disabled because there are no verified timestamps or waqf boundaries |
 | احفظ واسترجع | `recall` and `weak` cards. Revealed words are stored as weak words |
 | اربط | `cumulative` and `connect` cards, plus the existing ConnectPanel and SimilarPanel in Free mode |
-| سمّع | `recite` card (manual). The Tilawa hand-off is DESIGN READY |
+| سمّع | `recite` card (manual). Production Smart Tasmee is available on supported devices |
 | ثبّت | `complete` card and the Revision retention section |
 
 - The existing six-step `MemorizePanel` in Free mode is preserved unchanged.
@@ -192,30 +192,10 @@ Learning states (`RETENTION_AR`) come from the learner's own records only:
 
 ## 7. AI integration (Tilawa)
 
-- **Not installed:** `@tilawa/core` (https://github.com/yazinsai/tilawa) is not installed and no weights are downloaded. The live status is always «محرك التسميع غير محمّل · غير متاح».
-- **Contracts** (`learning/contracts.ts`): `TilawaEngine` (`supports`, `load(variant, onProgress, signal)`, `start`, `stop`, `release`), `TilawaEvent` (identified, word, uncertain, lost, mistake suspected/confirmed, self-corrected, end) and `TilawaState` (16 UI states).
-  - Every event must map to authoritative Hafs `(s, a, wordIndex)`.
-  - Focus and Mushaf presentations share one engine owner; switching views must not start another engine.
-  - Flowing pages expose the same authoritative `data-word` keys. A future fixed-layout renderer must map those keys to verified page coordinates.
-  - Only the `supports` categories are shown.
-- **UI** (`screens/tilawa.tsx`):
-  - Passage and free-start modes.
-  - The state flow.
-  - Tracking colours: gold = current word, soft green = recognised, amber = tentative, restrained red = engine-confirmed, neutral = uncertain.
-  - Mistake kinds, an empty report and the disclaimer.
-  - A manual hidden-text recitation hand-off to the guided feed.
-- **Model manager** (`screens/settings.tsx`):
-  - Light ≈ 25 MB and full ≈ 68 MB (advertised, to be verified). The UI states that download size ≠ RAM.
-  - Download, delete and release controls are disabled.
-  - Real browser checks: WebAssembly, AudioWorklet, getUserMedia, `navigator.storage.estimate()` and `deviceMemory`.
-  - States: `MODEL_STATE_AR`.
-- **Lifecycle requirements for Codex:**
-  - Never load at startup. Load only on request.
-  - Run only one model at a time.
-  - `release()` must free the mic and inference resources and be idempotent.
-  - The session owner sits above the device frames, like `SessionCtx` and the guided store, so Both mode never runs two engines or audio sessions.
-  - The manual path always works without a model.
-- **Muaalem:** isolated as a collapsed research tool in `recite`. It mounts and polls `useEngine` only after the user opens it.
+- Production Smart Tasmee is opt-in. Opening the screen does not fetch the model or request a microphone. The ayah and flowing Mushaf views share the live browser take.
+- A single WASM worker uses actual Tilawa events. Declared passages reject out-of-scope positions and exact word markers require alignment with authoritative Hafs text.
+- Actual observations stay local and can be revisited in Revision. The manual hidden-text path and explicit mastery checks remain available. Muaalem stays in Studio.
+- See [Tilawa integration](TILAWA_INTEGRATION.md) and [Performance report](PERFORMANCE_REPORT.md) for the selected SDK, weights, licensing, benchmark results and browser limitations.
 
 ## 8. Visual design
 
